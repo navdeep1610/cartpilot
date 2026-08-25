@@ -6,6 +6,8 @@
 # Next.js
 /.next/
 /out/
+/.open-next/
+/dist/
 
 # production
 /build

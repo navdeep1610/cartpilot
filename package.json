@@ -10,13 +10,16 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build-sites.mjs",
+    "build:next": "next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:worker": "opennextjs-cloudflare build --skipNextBuild",
+    "prepare:sites": "node scripts/prepare-sites-build.mjs"
   },
   "dependencies": {
     "@google/genai": "2.18.0",
@@ -30,6 +33,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.2",
     "@playwright/test": "1.62.1",
     "@types/node": "24.13.3",
     "@types/react": "19.2.18",
@@ -38,6 +42,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.0",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "wrangler": "4.86.0"
   }
 }
