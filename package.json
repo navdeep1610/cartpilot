@@ -22,13 +22,10 @@
     "prepare:sites": "node scripts/prepare-sites-build.mjs"
   },
   "dependencies": {
-    "@google/genai": "2.18.0",
     "@supabase/supabase-js": "2.112.4",
-    "ajv": "8.20.0",
     "csv-parse": "7.0.2",
     "lucide-react": "1.34.0",
     "next": "16.3.0",
-    "razorpay": "2.9.8",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
