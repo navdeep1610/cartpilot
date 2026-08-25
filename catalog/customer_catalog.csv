@@ -1,0 +1,41 @@
+product_id,product_type,product_name,starting_price_inr,sizes_available,use_case,status
+CLN-001,Cleanser,Gentle Hydrating Cleanser,299,"100 ml, 200 ml","Daily cleansing; suitable for normal and dry skin",active
+CLN-002,Cleanser,Salicylic Acid Cleanser,399,"100 ml, 200 ml","Helps control excess oil, acne and clogged pores",active
+CLN-003,Cleanser,Vitamin C Face Wash,349,"100 ml, 150 ml","Cleans skin and supports a brighter-looking complexion",active
+CLN-004,Cleanser,Ceramide Barrier Cleanser,449,"100 ml, 200 ml","Gentle cleansing for dry and sensitive skin",active
+CLN-005,Cleanser,Oil Control Foaming Cleanser,329,"100 ml, 150 ml","Removes excess oil and is suitable for oily skin",active
+SRM-001,Serum,10% Niacinamide Serum,499,"15 ml, 30 ml","Helps control oil and improve the appearance of pores",active
+SRM-002,Serum,Vitamin C Brightening Serum,599,"15 ml, 30 ml","Supports brighter-looking skin and helps with uneven tone",active
+SRM-003,Serum,Hyaluronic Acid Serum,549,"15 ml, 30 ml","Provides hydration and helps reduce skin dryness",active
+SRM-004,Serum,2% Salicylic Acid Serum,499,"15 ml, 30 ml","Targets oily skin, blackheads and clogged pores",active
+SRM-005,Serum,0.3% Retinol Serum,699,"15 ml, 30 ml","Targets fine lines and uneven skin texture",active
+SRM-006,Serum,Alpha Arbutin Serum,649,"15 ml, 30 ml","Helps improve the appearance of dark spots and uneven tone",active
+SRM-007,Serum,Peptide Repair Serum,749,"15 ml, 30 ml","Supports skin firmness and overall skin barrier care",active
+MST-001,Moisturizer,Lightweight Gel Moisturizer,449,"50 g, 100 g","Light hydration for oily and combination skin",active
+MST-002,Moisturizer,Ceramide Barrier Moisturizer,599,"50 g, 100 g","Supports the skin barrier and provides hydration for dry skin",active
+MST-003,Moisturizer,Deep Hydration Cream,549,"50 g, 100 g","Rich hydration for dry and dehydrated skin",active
+MST-004,Moisturizer,Oil Free Daily Moisturizer,399,"50 g, 100 g","Daily hydration without a heavy or greasy feel",active
+SUN-001,Sunscreen,Matte SPF 50 Sunscreen,499,"50 g, 100 g","Sun protection designed for oily and combination skin",active
+SUN-002,Sunscreen,Hydrating SPF 50 Sunscreen,549,"50 g, 100 g","Sun protection with added hydration for dry skin",active
+SUN-003,Sunscreen,Gel SPF 50 Sunscreen,599,"50 g, 100 g","Lightweight sun protection suitable for everyday use",active
+SUN-004,Sunscreen,Mineral SPF 50 Sunscreen,649,"50 g, 100 g","Mineral-based sun protection for sensitive skin",active
+TON-001,Toner,Hydrating Skin Toner,349,"100 ml, 200 ml","Adds hydration after cleansing",active
+TON-002,Toner,Niacinamide Oil Control Toner,399,"100 ml, 200 ml","Supports oil control and balanced-looking skin",active
+TON-003,Toner,Soothing Centella Toner,449,"100 ml, 200 ml","Helps soothe and hydrate sensitive-looking skin",active
+EXF-001,Exfoliant,5% Lactic Acid Exfoliant,499,"30 ml, 50 ml","Gentle exfoliation for dull and uneven skin texture",active
+EXF-002,Exfoliant,7% Glycolic Acid Toner,549,"100 ml","Exfoliates dead skin cells and improves the appearance of texture",active
+EXF-003,Exfoliant,2% BHA Exfoliant,599,"30 ml, 50 ml","Targets clogged pores, blackheads and oily skin",active
+ACN-001,Acne Treatment,Acne Spot Treatment Gel,349,"15 g, 30 g","Applied directly to individual acne spots",active
+ACN-002,Acne Treatment,Benzoyl Peroxide Acne Gel,399,"15 g, 30 g","Helps manage acne-prone skin",active
+MSK-001,Mask,Oil Control Clay Mask,399,"50 g, 100 g","Helps absorb excess oil and clean pores",active
+MSK-002,Mask,Hydrating Overnight Mask,499,"50 g, 100 g","Provides overnight hydration for dry skin",active
+MSK-003,Mask,Brightening Face Mask,449,"50 g, 100 g","Designed for dull-looking and uneven skin",active
+EYE-001,Eye Care,Caffeine Eye Serum,499,"15 ml, 30 ml","Helps improve the appearance of tired-looking under-eyes",active
+EYE-002,Eye Care,Hydrating Eye Cream,549,"15 g, 30 g","Provides hydration to the under-eye area",active
+LIP-001,Lip Care,Ceramide Lip Balm,199,"4.5 g, 10 g","Helps moisturize and protect dry lips",active
+LIP-002,Lip Care,SPF 30 Lip Balm,249,"4.5 g, 10 g","Moisturizes lips while providing sun protection",active
+BND-001,Bundle,Acne Control Starter Kit,1299,"3-product kit","Includes salicylic cleanser, niacinamide serum and gel moisturizer",active
+BND-002,Bundle,Brightening Starter Kit,1399,"3-product kit","Includes gentle cleanser, vitamin C serum and SPF 50 sunscreen",active
+BND-003,Bundle,Dry Skin Repair Kit,1499,"3-product kit","Includes hydrating cleanser, hyaluronic serum and ceramide moisturizer",active
+BND-004,Bundle,Daily Essentials Kit,1199,"3-product kit","Includes cleanser, moisturizer and sunscreen",active
+BND-005,Bundle,Oil Control Routine Kit,1349,"3-product kit","Includes foaming cleanser, niacinamide serum and matte sunscreen",active

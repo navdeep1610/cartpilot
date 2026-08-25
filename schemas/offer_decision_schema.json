@@ -1,0 +1,1159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cartpilot.local/schemas/offer-decision/1.0.0",
+  "title": "CartPilot Offer Decision",
+  "description": "Auditable output of CartPilot's deterministic candidate-generation, profit, discount, compatibility, and policy engines. This object does not itself prove payment or authorize fulfilment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decision_id",
+    "session_id",
+    "created_at",
+    "catalog_version",
+    "configuration_versions",
+    "currency",
+    "amount_unit",
+    "intent_snapshot_hash",
+    "decision_status",
+    "selection_method",
+    "randomness_used",
+    "model_role",
+    "baseline_candidate_id",
+    "candidates",
+    "selected_candidate_id",
+    "selection_summary",
+    "customer_explanation",
+    "merchant_explanation",
+    "customer_gate",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "decision_id": {
+      "type": "string",
+      "pattern": "^DEC-[A-Z0-9-]{8,80}$"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 120
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "catalog_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "configuration_versions": {
+      "$ref": "#/$defs/configurationVersions"
+    },
+    "currency": {
+      "const": "INR"
+    },
+    "amount_unit": {
+      "const": "minor_units_paise"
+    },
+    "intent_snapshot_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "decision_status": {
+      "type": "string",
+      "enum": [
+        "selected",
+        "no_valid_offer",
+        "clarification_required",
+        "manual_review"
+      ]
+    },
+    "selection_method": {
+      "const": "deterministic_profit_policy"
+    },
+    "randomness_used": {
+      "const": false
+    },
+    "model_role": {
+      "const": "intent_and_explanation_only"
+    },
+    "baseline_candidate_id": {
+      "$ref": "#/$defs/candidateId"
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/offerCandidate"
+      }
+    },
+    "selected_candidate_id": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/candidateId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "selection_summary": {
+      "$ref": "#/$defs/selectionSummary"
+    },
+    "customer_explanation": {
+      "$ref": "#/$defs/customerExplanation"
+    },
+    "merchant_explanation": {
+      "$ref": "#/$defs/merchantExplanation"
+    },
+    "customer_gate": {
+      "$ref": "#/$defs/customerGate"
+    },
+    "audit": {
+      "$ref": "#/$defs/auditMetadata"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision_status": {
+            "const": "selected"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "selected_candidate_id": {
+            "$ref": "#/$defs/candidateId"
+          },
+          "customer_gate": {
+            "properties": {
+              "confirmation_required": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "selected_candidate_id": {
+            "type": "null"
+          },
+          "customer_gate": {
+            "properties": {
+              "order_creation_authorized": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "candidateId": {
+      "type": "string",
+      "pattern": "^OFR-[A-Z0-9-]{4,80}$"
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,100}$"
+    },
+    "productId": {
+      "type": "string",
+      "pattern": "^(CLN|SRM|MST|SUN|TON|EXF|ACN|MSK|EYE|LIP|BND)-[0-9]{3}$"
+    },
+    "variantId": {
+      "type": "string",
+      "pattern": "^(CLN|SRM|MST|SUN|TON|EXF|ACN|MSK|EYE|LIP|BND)-[0-9]{3}-[A-Z0-9]+$"
+    },
+    "configurationVersions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "product_variants",
+        "merchant_economics",
+        "product_profiles",
+        "product_compatibility",
+        "bundle_components",
+        "discount_policy",
+        "profit_formula",
+        "offer_ranking"
+      ],
+      "properties": {
+        "product_variants": {
+          "type": "string",
+          "minLength": 1
+        },
+        "merchant_economics": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_profiles": {
+          "type": "string",
+          "minLength": 1
+        },
+        "product_compatibility": {
+          "type": "string",
+          "minLength": 1
+        },
+        "bundle_components": {
+          "type": "string",
+          "minLength": 1
+        },
+        "discount_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profit_formula": {
+          "type": "string",
+          "minLength": 1
+        },
+        "offer_ranking": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "offerLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "product_id",
+        "variant_id",
+        "quantity",
+        "routine_role",
+        "unit_price_paise",
+        "line_subtotal_paise",
+        "line_discount_paise",
+        "line_final_paise",
+        "discount_eligible"
+      ],
+      "properties": {
+        "product_id": {
+          "$ref": "#/$defs/productId"
+        },
+        "variant_id": {
+          "$ref": "#/$defs/variantId"
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "routine_role": {
+          "type": "string",
+          "enum": [
+            "cleanse",
+            "tone",
+            "hydrate",
+            "treat",
+            "exfoliate",
+            "moisturize",
+            "protect",
+            "mask",
+            "eye_care",
+            "lip_care",
+            "multi_step_bundle"
+          ]
+        },
+        "unit_price_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "line_subtotal_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "line_discount_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "line_final_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "discount_eligible": {
+          "type": "boolean"
+        }
+      }
+    },
+    "discountDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applied",
+        "trigger_id",
+        "discount_rate_bps",
+        "discount_amount_paise",
+        "threshold_offer_id",
+        "policy_reason_code"
+      ],
+      "properties": {
+        "applied": {
+          "type": "boolean"
+        },
+        "trigger_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "PRICE_OBJECTION",
+            "BUDGET_GAP",
+            "ITEM_REMOVED_FOR_PRICE",
+            "APPROVED_CAMPAIGN",
+            null
+          ]
+        },
+        "discount_rate_bps": {
+          "type": "integer",
+          "enum": [
+            0,
+            300,
+            500,
+            800,
+            1000,
+            1200,
+            1500
+          ],
+          "description": "Basis points where 500 equals 5 percent."
+        },
+        "discount_amount_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "threshold_offer_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 80
+        },
+        "policy_reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        }
+      }
+    },
+    "profitBreakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gross_item_revenue_paise",
+        "discount_cost_paise",
+        "net_revenue_paise",
+        "product_cost_paise",
+        "packaging_cost_paise",
+        "fulfilment_cost_paise",
+        "expected_return_cost_paise",
+        "estimated_payment_cost_paise",
+        "incentive_cost_paise",
+        "contribution_profit_paise",
+        "contribution_margin_bps"
+      ],
+      "properties": {
+        "gross_item_revenue_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "discount_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "net_revenue_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "product_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "packaging_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fulfilment_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_return_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimated_payment_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incentive_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contribution_profit_paise": {
+          "type": "integer"
+        },
+        "contribution_margin_bps": {
+          "type": "integer",
+          "minimum": -100000,
+          "maximum": 10000
+        }
+      }
+    },
+    "rankingInputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relevance_weight_bps",
+        "compatibility_weight_bps",
+        "budget_fit_weight_bps",
+        "intent_weight_bps",
+        "friction_penalty_units",
+        "risk_penalty_units",
+        "final_offer_score_units",
+        "score_is_probability"
+      ],
+      "properties": {
+        "relevance_weight_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "compatibility_weight_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "budget_fit_weight_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "intent_weight_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "friction_penalty_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "risk_penalty_units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "final_offer_score_units": {
+          "type": "integer"
+        },
+        "score_is_probability": {
+          "const": false
+        }
+      }
+    },
+    "hardGuardResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_id",
+        "passed",
+        "reason_code",
+        "detail"
+      ],
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{2,100}$"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "reason_code": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/reasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "compatibilityEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "matched_rule_ids",
+        "reason_codes"
+      ],
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "clarify",
+            "separate_use",
+            "block_auto_bundle",
+            "manual_review"
+          ]
+        },
+        "matched_rule_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^PCR-[0-9]{3}$"
+          }
+        },
+        "reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reasonCode"
+          }
+        }
+      }
+    },
+    "baselineComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_candidate_id",
+        "incremental_net_revenue_paise",
+        "incremental_contribution_profit_paise",
+        "offer_score_delta_units"
+      ],
+      "properties": {
+        "baseline_candidate_id": {
+          "$ref": "#/$defs/candidateId"
+        },
+        "incremental_net_revenue_paise": {
+          "type": "integer"
+        },
+        "incremental_contribution_profit_paise": {
+          "type": "integer"
+        },
+        "offer_score_delta_units": {
+          "type": "integer"
+        }
+      }
+    },
+    "offerCandidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "candidate_type",
+        "candidate_status",
+        "lines",
+        "customer_total_paise",
+        "discount",
+        "profit",
+        "ranking",
+        "compatibility",
+        "hard_guard_results",
+        "rejection_reason_codes",
+        "baseline_comparison"
+      ],
+      "properties": {
+        "candidate_id": {
+          "$ref": "#/$defs/candidateId"
+        },
+        "candidate_type": {
+          "type": "string",
+          "enum": [
+            "requested_product_only",
+            "compatible_cross_sell",
+            "generated_routine_bundle",
+            "prepriced_catalog_bundle",
+            "lower_price_substitute",
+            "smaller_compatible_routine",
+            "threshold_incentive",
+            "discounted_product",
+            "discounted_generated_bundle",
+            "no_additional_offer"
+          ]
+        },
+        "candidate_status": {
+          "type": "string",
+          "enum": [
+            "baseline",
+            "eligible",
+            "rejected",
+            "selected"
+          ]
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/offerLine"
+          }
+        },
+        "customer_total_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "discount": {
+          "$ref": "#/$defs/discountDecision"
+        },
+        "profit": {
+          "$ref": "#/$defs/profitBreakdown"
+        },
+        "ranking": {
+          "$ref": "#/$defs/rankingInputs"
+        },
+        "compatibility": {
+          "$ref": "#/$defs/compatibilityEvaluation"
+        },
+        "hard_guard_results": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/hardGuardResult"
+          }
+        },
+        "rejection_reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reasonCode"
+          }
+        },
+        "baseline_comparison": {
+          "$ref": "#/$defs/baselineComparison"
+        }
+      }
+    },
+    "selectionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evaluated_count",
+        "eligible_count",
+        "rejected_count",
+        "selected_reason_code",
+        "tie_breaker_used"
+      ],
+      "properties": {
+        "evaluated_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "eligible_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selected_reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "tie_breaker_used": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "higher_offer_score",
+            "higher_contribution_profit_paise",
+            "lower_discount_paise",
+            "fewer_added_products",
+            "lower_customer_total_paise",
+            "lexicographically_smaller_offer_id",
+            null
+          ]
+        }
+      }
+    },
+    "customerItemReason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "product_id",
+        "reason"
+      ],
+      "properties": {
+        "product_id": {
+          "$ref": "#/$defs/productId"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      }
+    },
+    "customerExplanation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "headline",
+        "summary",
+        "item_reasons",
+        "offer_reason",
+        "discount_message",
+        "safety_notes",
+        "discloses_internal_costs"
+      ],
+      "properties": {
+        "headline": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "item_reasons": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/customerItemReason"
+          }
+        },
+        "offer_reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "discount_message": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 240
+        },
+        "safety_notes": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "discloses_internal_costs": {
+          "const": false
+        }
+      }
+    },
+    "merchantExplanation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected_rationale",
+        "profit_formula_version",
+        "selected_contribution_profit_paise",
+        "incremental_contribution_profit_paise",
+        "rejected_candidate_ids",
+        "primary_rejection_reason_codes"
+      ],
+      "properties": {
+        "selected_rationale": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "profit_formula_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "selected_contribution_profit_paise": {
+          "type": "integer"
+        },
+        "incremental_contribution_profit_paise": {
+          "type": "integer"
+        },
+        "rejected_candidate_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/candidateId"
+          }
+        },
+        "primary_rejection_reason_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reasonCode"
+          }
+        }
+      }
+    },
+    "customerGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confirmation_required",
+        "confirmation_status",
+        "confirmed_at",
+        "confirmed_total_paise",
+        "confirmed_cart_hash",
+        "decision_revalidated_after_confirmation",
+        "order_creation_authorized"
+      ],
+      "properties": {
+        "confirmation_required": {
+          "type": "boolean"
+        },
+        "confirmation_status": {
+          "type": "string",
+          "enum": [
+            "not_requested",
+            "awaiting_customer",
+            "confirmed",
+            "rejected",
+            "expired"
+          ]
+        },
+        "confirmed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "confirmed_total_paise": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "confirmed_cart_hash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision_revalidated_after_confirmation": {
+          "type": "boolean"
+        },
+        "order_creation_authorized": {
+          "type": "boolean"
+        }
+      }
+    },
+    "auditMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_id",
+        "input_hash",
+        "candidate_set_hash",
+        "decision_hash",
+        "engine_reason_codes",
+        "contains_raw_payment_credentials",
+        "contains_sensitive_pricing_signal"
+      ],
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 120
+        },
+        "input_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "candidate_set_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "decision_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "engine_reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reasonCode"
+          }
+        },
+        "contains_raw_payment_credentials": {
+          "const": false
+        },
+        "contains_sensitive_pricing_signal": {
+          "const": false
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1.0.0",
+      "decision_id": "DEC-DEMO-00000001",
+      "session_id": "SESSION-DEMO-0001",
+      "created_at": "2026-08-24T12:00:00Z",
+      "catalog_version": "catalog-draft-1",
+      "configuration_versions": {
+        "product_variants": "draft-1",
+        "merchant_economics": "draft-1",
+        "product_profiles": "draft-1",
+        "product_compatibility": "draft-1",
+        "bundle_components": "draft-1",
+        "discount_policy": "1.0.0",
+        "profit_formula": "1.0.0",
+        "offer_ranking": "1.0.0"
+      },
+      "currency": "INR",
+      "amount_unit": "minor_units_paise",
+      "intent_snapshot_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "decision_status": "selected",
+      "selection_method": "deterministic_profit_policy",
+      "randomness_used": false,
+      "model_role": "intent_and_explanation_only",
+      "baseline_candidate_id": "OFR-DEMO-BASE",
+      "candidates": [
+        {
+          "candidate_id": "OFR-DEMO-BASE",
+          "candidate_type": "requested_product_only",
+          "candidate_status": "baseline",
+          "lines": [
+            {
+              "product_id": "TON-001",
+              "variant_id": "TON-001-100ML",
+              "quantity": 1,
+              "routine_role": "tone",
+              "unit_price_paise": 34900,
+              "line_subtotal_paise": 34900,
+              "line_discount_paise": 0,
+              "line_final_paise": 34900,
+              "discount_eligible": true
+            }
+          ],
+          "customer_total_paise": 34900,
+          "discount": {
+            "applied": false,
+            "trigger_id": null,
+            "discount_rate_bps": 0,
+            "discount_amount_paise": 0,
+            "threshold_offer_id": null,
+            "policy_reason_code": "NO_DISCOUNT_TRIGGER"
+          },
+          "profit": {
+            "gross_item_revenue_paise": 34900,
+            "discount_cost_paise": 0,
+            "net_revenue_paise": 34900,
+            "product_cost_paise": 12000,
+            "packaging_cost_paise": 1800,
+            "fulfilment_cost_paise": 3500,
+            "expected_return_cost_paise": 240,
+            "estimated_payment_cost_paise": 698,
+            "incentive_cost_paise": 0,
+            "contribution_profit_paise": 16662,
+            "contribution_margin_bps": 4774
+          },
+          "ranking": {
+            "relevance_weight_bps": 10000,
+            "compatibility_weight_bps": 10000,
+            "budget_fit_weight_bps": 10000,
+            "intent_weight_bps": 9000,
+            "friction_penalty_units": 0,
+            "risk_penalty_units": 0,
+            "final_offer_score_units": 149958,
+            "score_is_probability": false
+          },
+          "compatibility": {
+            "decision": "allow",
+            "matched_rule_ids": [],
+            "reason_codes": []
+          },
+          "hard_guard_results": [
+            {
+              "rule_id": "VALID_CATALOG_VARIANTS",
+              "passed": true,
+              "reason_code": null,
+              "detail": "All variants exist and are active"
+            }
+          ],
+          "rejection_reason_codes": [],
+          "baseline_comparison": {
+            "baseline_candidate_id": "OFR-DEMO-BASE",
+            "incremental_net_revenue_paise": 0,
+            "incremental_contribution_profit_paise": 0,
+            "offer_score_delta_units": 0
+          }
+        },
+        {
+          "candidate_id": "OFR-DEMO-CROSSSELL",
+          "candidate_type": "compatible_cross_sell",
+          "candidate_status": "selected",
+          "lines": [
+            {
+              "product_id": "TON-001",
+              "variant_id": "TON-001-100ML",
+              "quantity": 1,
+              "routine_role": "tone",
+              "unit_price_paise": 34900,
+              "line_subtotal_paise": 34900,
+              "line_discount_paise": 0,
+              "line_final_paise": 34900,
+              "discount_eligible": true
+            },
+            {
+              "product_id": "CLN-001",
+              "variant_id": "CLN-001-100ML",
+              "quantity": 1,
+              "routine_role": "cleanse",
+              "unit_price_paise": 29900,
+              "line_subtotal_paise": 29900,
+              "line_discount_paise": 0,
+              "line_final_paise": 29900,
+              "discount_eligible": true
+            }
+          ],
+          "customer_total_paise": 64800,
+          "discount": {
+            "applied": false,
+            "trigger_id": null,
+            "discount_rate_bps": 0,
+            "discount_amount_paise": 0,
+            "threshold_offer_id": null,
+            "policy_reason_code": "NO_DISCOUNT_ALREADY_PROFITABLE"
+          },
+          "profit": {
+            "gross_item_revenue_paise": 64800,
+            "discount_cost_paise": 0,
+            "net_revenue_paise": 64800,
+            "product_cost_paise": 22500,
+            "packaging_cost_paise": 3600,
+            "fulfilment_cost_paise": 7000,
+            "expected_return_cost_paise": 480,
+            "estimated_payment_cost_paise": 1296,
+            "incentive_cost_paise": 0,
+            "contribution_profit_paise": 29924,
+            "contribution_margin_bps": 4618
+          },
+          "ranking": {
+            "relevance_weight_bps": 9500,
+            "compatibility_weight_bps": 10000,
+            "budget_fit_weight_bps": 10000,
+            "intent_weight_bps": 9500,
+            "friction_penalty_units": 500,
+            "risk_penalty_units": 0,
+            "final_offer_score_units": 269565,
+            "score_is_probability": false
+          },
+          "compatibility": {
+            "decision": "allow",
+            "matched_rule_ids": [
+              "PCR-001"
+            ],
+            "reason_codes": []
+          },
+          "hard_guard_results": [
+            {
+              "rule_id": "VALID_CATALOG_VARIANTS",
+              "passed": true,
+              "reason_code": null,
+              "detail": "All variants exist and are active"
+            },
+            {
+              "rule_id": "CUSTOMER_BUDGET",
+              "passed": true,
+              "reason_code": null,
+              "detail": "₹648 is within the explicit ₹1,000 budget"
+            },
+            {
+              "rule_id": "CONTRIBUTION_MARGIN_FLOOR",
+              "passed": true,
+              "reason_code": null,
+              "detail": "The candidate remains above all configured margin floors"
+            }
+          ],
+          "rejection_reason_codes": [],
+          "baseline_comparison": {
+            "baseline_candidate_id": "OFR-DEMO-BASE",
+            "incremental_net_revenue_paise": 29900,
+            "incremental_contribution_profit_paise": 13262,
+            "offer_score_delta_units": 119607
+          }
+        }
+      ],
+      "selected_candidate_id": "OFR-DEMO-CROSSSELL",
+      "selection_summary": {
+        "evaluated_count": 2,
+        "eligible_count": 2,
+        "rejected_count": 0,
+        "selected_reason_code": "COMPATIBLE_CROSS_SELL_SELECTED",
+        "tie_breaker_used": null
+      },
+      "customer_explanation": {
+        "headline": "A simple hydrating cleanse-and-tone pair",
+        "summary": "The hydrating toner is paired with a gentle cleanser and the total stays within your stated budget.",
+        "item_reasons": [
+          {
+            "product_id": "TON-001",
+            "reason": "Adds the hydration step you requested after cleansing."
+          },
+          {
+            "product_id": "CLN-001",
+            "reason": "Provides the gentle cleansing step requested for dry skin."
+          }
+        ],
+        "offer_reason": "This compatible pair stays within the ₹1,000 budget without requiring a discount.",
+        "discount_message": null,
+        "safety_notes": [
+          "Use products as directed on their labels."
+        ],
+        "discloses_internal_costs": false
+      },
+      "merchant_explanation": {
+        "selected_rationale": "The cross-sell candidate passed compatibility and budget gates and produced ₹132.62 more estimated contribution profit than the product-only baseline without discounting.",
+        "profit_formula_version": "1.0.0",
+        "selected_contribution_profit_paise": 29924,
+        "incremental_contribution_profit_paise": 13262,
+        "rejected_candidate_ids": [],
+        "primary_rejection_reason_codes": []
+      },
+      "customer_gate": {
+        "confirmation_required": true,
+        "confirmation_status": "awaiting_customer",
+        "confirmed_at": null,
+        "confirmed_total_paise": null,
+        "confirmed_cart_hash": null,
+        "decision_revalidated_after_confirmation": false,
+        "order_creation_authorized": false
+      },
+      "audit": {
+        "trace_id": "TRACE-DEMO-0001",
+        "input_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+        "candidate_set_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "decision_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+        "engine_reason_codes": [
+          "COMPATIBLE_CROSS_SELL_SELECTED",
+          "NO_DISCOUNT_ALREADY_PROFITABLE",
+          "CUSTOMER_CONFIRMATION_REQUIRED"
+        ],
+        "contains_raw_payment_credentials": false,
+        "contains_sensitive_pricing_signal": false
+      }
+    }
+  ],
+  "$comment": "The LLM may help draft customer-facing wording after selection, but cannot add products, change economics, modify scores, select discounts, authorize order creation, or determine payment state."
+}

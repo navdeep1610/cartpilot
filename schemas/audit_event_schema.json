@@ -1,0 +1,2428 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cartpilot.local/schemas/audit-event/1.0.0",
+  "title": "CartPilot Append-Only Audit Event",
+  "description": "Canonical, append-only evidence record for every material CartPilot recommendation, commercial decision, customer gate, Razorpay action, payment transition, failure, and recovery step. It records explanations and bounded inputs without storing payment credentials or secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "sequence",
+    "occurred_at",
+    "recorded_at",
+    "event_name",
+    "event_category",
+    "severity",
+    "outcome",
+    "correlation",
+    "actor",
+    "source",
+    "subject",
+    "action",
+    "request_context",
+    "catalog_context",
+    "decision_context",
+    "money_context",
+    "gate_results",
+    "state_change",
+    "failure",
+    "recovery",
+    "explanation",
+    "integrity",
+    "privacy"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "event_id": {
+      "$ref": "#/$defs/eventId"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing within one trace."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "event_name": {
+      "$ref": "#/$defs/eventName"
+    },
+    "event_category": {
+      "type": "string",
+      "enum": [
+        "session",
+        "intent",
+        "catalog",
+        "recommendation",
+        "offer",
+        "discount",
+        "cart",
+        "confirmation",
+        "order",
+        "checkout",
+        "payment",
+        "webhook",
+        "fulfilment",
+        "recovery",
+        "system"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": [
+        "info",
+        "warning",
+        "error",
+        "critical"
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "selected",
+        "rejected",
+        "blocked",
+        "failed",
+        "pending",
+        "no_change",
+        "duplicate_ignored",
+        "recovered"
+      ]
+    },
+    "correlation": {
+      "$ref": "#/$defs/correlation"
+    },
+    "actor": {
+      "$ref": "#/$defs/actor"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "action": {
+      "$ref": "#/$defs/action"
+    },
+    "request_context": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/requestContext"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "catalog_context": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/catalogContext"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "decision_context": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/decisionContext"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "money_context": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/moneyContext"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "gate_results": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/gateResult"
+      }
+    },
+    "state_change": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/stateChange"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "failure": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/failure"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "recovery": {
+      "$ref": "#/$defs/recovery"
+    },
+    "explanation": {
+      "$ref": "#/$defs/explanation"
+    },
+    "integrity": {
+      "$ref": "#/$defs/integrity"
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_category": {
+            "enum": [
+              "discount",
+              "cart",
+              "confirmation",
+              "order",
+              "checkout",
+              "payment",
+              "fulfilment"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "money_context": {
+            "$ref": "#/$defs/moneyContext"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_name": {
+            "enum": [
+              "intent.validation_failed",
+              "order.creation_failed",
+              "payment.signature_failed",
+              "payment.failed",
+              "webhook.signature_rejected",
+              "recovery.failed",
+              "system.dependency_failed",
+              "system.data_integrity_failed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "outcome": {
+            "enum": [
+              "failed",
+              "blocked"
+            ]
+          },
+          "failure": {
+            "$ref": "#/$defs/failure"
+          },
+          "severity": {
+            "enum": [
+              "warning",
+              "error",
+              "critical"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_name": {
+            "const": "payment.failed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "event_category": {
+            "const": "payment"
+          },
+          "state_change": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/stateChange"
+              },
+              {
+                "properties": {
+                  "state_domain": {
+                    "const": "payment"
+                  },
+                  "to_state": {
+                    "const": "payment_failed"
+                  }
+                }
+              }
+            ]
+          },
+          "money_context": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/moneyContext"
+              },
+              {
+                "properties": {
+                  "order_marked_paid": {
+                    "const": false
+                  },
+                  "fulfilment_authorized": {
+                    "const": false
+                  }
+                }
+              }
+            ]
+          },
+          "failure": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/failure"
+              },
+              {
+                "properties": {
+                  "cart_retained": {
+                    "const": true
+                  },
+                  "order_marked_paid": {
+                    "const": false
+                  },
+                  "fulfilment_performed": {
+                    "const": false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_name": {
+            "const": "webhook.duplicate_ignored"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "event_category": {
+            "const": "webhook"
+          },
+          "outcome": {
+            "const": "duplicate_ignored"
+          },
+          "state_change": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/stateChange"
+              },
+              {
+                "properties": {
+                  "transition_applied": {
+                    "const": false
+                  }
+                }
+              }
+            ]
+          },
+          "recovery": {
+            "properties": {
+              "action": {
+                "const": "ignore_duplicate"
+              },
+              "duplicate_fulfilment_prevention_enabled": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "money_context": {
+            "type": "object",
+            "properties": {
+              "fulfilment_authorized": {
+                "const": true
+              }
+            },
+            "required": [
+              "fulfilment_authorized"
+            ]
+          }
+        },
+        "required": [
+          "money_context"
+        ]
+      },
+      "then": {
+        "properties": {
+          "event_name": {
+            "const": "fulfilment.authorized"
+          },
+          "event_category": {
+            "const": "fulfilment"
+          },
+          "outcome": {
+            "const": "succeeded"
+          },
+          "money_context": {
+            "properties": {
+              "customer_confirmation_status": {
+                "const": "confirmed"
+              },
+              "order_marked_paid": {
+                "const": true
+              },
+              "capture_confirmed": {
+                "const": true
+              }
+            }
+          },
+          "gate_results": {
+            "allOf": [
+              {
+                "anyOf": [
+                  {
+                    "contains": {
+                      "type": "object",
+                      "properties": {
+                        "gate_type": {
+                          "const": "payment_signature"
+                        },
+                        "result": {
+                          "const": "passed"
+                        }
+                      },
+                      "required": [
+                        "gate_type",
+                        "result"
+                      ]
+                    }
+                  },
+                  {
+                    "contains": {
+                      "type": "object",
+                      "properties": {
+                        "gate_type": {
+                          "const": "webhook_signature"
+                        },
+                        "result": {
+                          "const": "passed"
+                        }
+                      },
+                      "required": [
+                        "gate_type",
+                        "result"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "gate_type": {
+                      "const": "capture"
+                    },
+                    "result": {
+                      "const": "passed"
+                    }
+                  },
+                  "required": [
+                    "gate_type",
+                    "result"
+                  ]
+                }
+              },
+              {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "gate_type": {
+                      "const": "customer_confirmation"
+                    },
+                    "result": {
+                      "const": "passed"
+                    }
+                  },
+                  "required": [
+                    "gate_type",
+                    "result"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "properties": {
+              "external_side_effect": {
+                "const": true
+              },
+              "executed": {
+                "const": true
+              }
+            },
+            "required": [
+              "external_side_effect",
+              "executed"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "properties": {
+              "authorized": {
+                "const": true
+              },
+              "authorization_gate_ids": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "eventId": {
+      "type": "string",
+      "pattern": "^EVT-[A-Z0-9-]{8,80}$"
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,100}$"
+    },
+    "productId": {
+      "type": "string",
+      "pattern": "^(CLN|SRM|MST|SUN|TON|EXF|ACN|MSK|EYE|LIP|BND)-[0-9]{3}$"
+    },
+    "variantId": {
+      "type": "string",
+      "pattern": "^(CLN|SRM|MST|SUN|TON|EXF|ACN|MSK|EYE|LIP|BND)-[0-9]{3}-[A-Z0-9]+$"
+    },
+    "eventName": {
+      "type": "string",
+      "enum": [
+        "session.started",
+        "session.ended",
+        "intent.extracted",
+        "intent.clarification_requested",
+        "intent.validation_failed",
+        "catalog.filtered",
+        "catalog.inventory_rejected",
+        "compatibility.evaluated",
+        "compatibility.blocked",
+        "candidate.generated",
+        "candidate.rejected",
+        "offer.selected",
+        "offer.no_valid_offer",
+        "discount.evaluated",
+        "discount.applied",
+        "discount.rejected",
+        "cart.presented",
+        "customer.confirmed",
+        "customer.rejected",
+        "order.creation_authorized",
+        "order.creation_blocked",
+        "order.created",
+        "order.creation_failed",
+        "checkout.opened",
+        "checkout.dismissed",
+        "payment.callback_received",
+        "payment.signature_verified",
+        "payment.signature_failed",
+        "payment.authorized",
+        "payment.captured",
+        "payment.failed",
+        "payment.late_authorization_detected",
+        "payment.retry_started",
+        "webhook.received",
+        "webhook.verified",
+        "webhook.signature_rejected",
+        "webhook.duplicate_ignored",
+        "webhook.out_of_order_reconciled",
+        "fulfilment.authorized",
+        "fulfilment.blocked",
+        "recovery.offered",
+        "recovery.started",
+        "recovery.completed",
+        "recovery.failed",
+        "system.dependency_failed",
+        "system.data_integrity_failed",
+        "system.manual_review_requested",
+        "system.manual_review_resolved"
+      ]
+    },
+    "nullableExternalId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_id",
+        "session_id",
+        "parent_event_id",
+        "customer_intent_hash",
+        "decision_id",
+        "payment_record_id",
+        "internal_order_id",
+        "razorpay_order_id",
+        "payment_attempt_id",
+        "razorpay_payment_id",
+        "razorpay_event_id",
+        "idempotency_key"
+      ],
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "pattern": "^TRACE-[A-Z0-9-]{8,80}$"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 120
+        },
+        "parent_event_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/eventId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "customer_intent_hash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^DEC-[A-Z0-9-]{8,80}$"
+        },
+        "payment_record_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^PAYREC-[A-Z0-9-]{8,80}$"
+        },
+        "internal_order_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^ORD-[A-Z0-9-]{8,80}$"
+        },
+        "razorpay_order_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^order_[A-Za-z0-9]+$"
+        },
+        "payment_attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^ATT-[A-Z0-9-]{8,80}$"
+        },
+        "razorpay_payment_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^pay_[A-Za-z0-9]+$"
+        },
+        "razorpay_event_id": {
+          "$ref": "#/$defs/nullableExternalId"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200
+        }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor_type",
+        "actor_reference",
+        "authenticated",
+        "initiated_by_customer"
+      ],
+      "properties": {
+        "actor_type": {
+          "type": "string",
+          "enum": [
+            "customer",
+            "ai_model",
+            "backend_engine",
+            "razorpay_checkout",
+            "razorpay_api",
+            "razorpay_webhook",
+            "operator",
+            "scheduler"
+          ]
+        },
+        "actor_reference": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 160,
+          "description": "Pseudonymous or internal reference only; never an email, phone number, payment credential, or secret."
+        },
+        "authenticated": {
+          "type": "boolean"
+        },
+        "initiated_by_customer": {
+          "type": "boolean"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "service",
+        "component",
+        "component_version",
+        "environment",
+        "code_revision",
+        "model_identifier"
+      ],
+      "properties": {
+        "service": {
+          "const": "cartpilot"
+        },
+        "component": {
+          "type": "string",
+          "enum": [
+            "conversation_orchestrator",
+            "intent_parser",
+            "catalog_engine",
+            "compatibility_engine",
+            "bundle_engine",
+            "profit_engine",
+            "discount_engine",
+            "offer_ranker",
+            "policy_engine",
+            "checkout_engine",
+            "payment_state_engine",
+            "webhook_processor",
+            "reconciliation_worker",
+            "fulfilment_gate",
+            "audit_engine"
+          ]
+        },
+        "component_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "environment": {
+          "const": "test"
+        },
+        "code_revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "model_identifier": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100,
+          "description": "Required only for AI-assisted parsing or wording events; the model is never the authority for pricing or money actions."
+        }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entity_type",
+        "entity_id",
+        "snapshot_hash",
+        "snapshot_reference"
+      ],
+      "properties": {
+        "entity_type": {
+          "type": "string",
+          "enum": [
+            "session",
+            "customer_intent",
+            "catalog_selection",
+            "candidate",
+            "offer_decision",
+            "discount_decision",
+            "cart",
+            "customer_confirmation",
+            "internal_order",
+            "razorpay_order",
+            "payment_attempt",
+            "webhook_event",
+            "fulfilment_gate",
+            "recovery_attempt",
+            "system_operation"
+          ]
+        },
+        "entity_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "snapshot_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "snapshot_reference": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300,
+          "description": "Internal reference to protected structured evidence; never a public URL containing customer or payment data."
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_type",
+        "requested",
+        "authorized",
+        "executed",
+        "external_side_effect",
+        "customer_confirmation_required",
+        "customer_confirmation_present",
+        "authorization_gate_ids",
+        "blocked_reason_code"
+      ],
+      "properties": {
+        "action_type": {
+          "type": "string",
+          "enum": [
+            "none",
+            "parse_intent",
+            "filter_catalog",
+            "evaluate_compatibility",
+            "generate_candidate",
+            "select_offer",
+            "apply_discount",
+            "present_cart",
+            "record_confirmation",
+            "create_order",
+            "open_checkout",
+            "verify_signature",
+            "update_payment_state",
+            "authorize_fulfilment",
+            "fulfil_order",
+            "offer_retry",
+            "ignore_duplicate",
+            "request_manual_review"
+          ]
+        },
+        "requested": {
+          "type": "boolean"
+        },
+        "authorized": {
+          "type": "boolean"
+        },
+        "executed": {
+          "type": "boolean"
+        },
+        "external_side_effect": {
+          "type": "boolean"
+        },
+        "customer_confirmation_required": {
+          "type": "boolean"
+        },
+        "customer_confirmation_present": {
+          "type": "boolean"
+        },
+        "authorization_gate_ids": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^GATE-[A-Z0-9-]{3,80}$"
+          }
+        },
+        "blocked_reason_code": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/reasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "authorized": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "executed": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "customer_confirmation_required": {
+                "const": true
+              },
+              "executed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "customer_confirmation_present": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    "requestContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "customer_request_summary",
+        "customer_message_hash",
+        "intent_schema_version",
+        "intent_hash",
+        "language",
+        "requested_product_ids",
+        "skin_types",
+        "skin_concerns",
+        "budget_paise",
+        "sanitized",
+        "raw_customer_message_stored"
+      ],
+      "properties": {
+        "customer_request_summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "customer_message_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "intent_schema_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "intent_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "language": {
+          "type": "string",
+          "enum": [
+            "en",
+            "hi",
+            "en_hi",
+            "unknown"
+          ]
+        },
+        "requested_product_ids": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/productId"
+          }
+        },
+        "skin_types": {
+          "type": "array",
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "skin_concerns": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "budget_paise": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 100
+        },
+        "sanitized": {
+          "const": true
+        },
+        "raw_customer_message_stored": {
+          "const": false
+        }
+      }
+    },
+    "catalogContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalog_version",
+        "configuration_versions",
+        "considered_product_ids",
+        "considered_variant_ids",
+        "selected_product_ids",
+        "selected_variant_ids",
+        "authoritative_price_source",
+        "inventory_checked",
+        "compatibility_checked"
+      ],
+      "properties": {
+        "catalog_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "configuration_versions": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 20,
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "considered_product_ids": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/productId"
+          }
+        },
+        "considered_variant_ids": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/variantId"
+          }
+        },
+        "selected_product_ids": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/productId"
+          }
+        },
+        "selected_variant_ids": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/variantId"
+          }
+        },
+        "authoritative_price_source": {
+          "const": "server_catalog"
+        },
+        "inventory_checked": {
+          "type": "boolean"
+        },
+        "compatibility_checked": {
+          "type": "boolean"
+        }
+      }
+    },
+    "candidateRejection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "reason_codes"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^OFR-[A-Z0-9-]{4,80}$"
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reasonCode"
+          }
+        }
+      }
+    },
+    "decisionContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_id",
+        "decision_schema_version",
+        "decision_hash",
+        "selection_method",
+        "model_role",
+        "randomness_used",
+        "candidate_ids",
+        "selected_candidate_id",
+        "candidate_rejections",
+        "profit_formula_version",
+        "ranking_policy_version",
+        "decision_reproducible"
+      ],
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "pattern": "^DEC-[A-Z0-9-]{8,80}$"
+        },
+        "decision_schema_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "decision_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "selection_method": {
+          "const": "deterministic_profit_policy"
+        },
+        "model_role": {
+          "const": "intent_and_explanation_only"
+        },
+        "randomness_used": {
+          "const": false
+        },
+        "candidate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^OFR-[A-Z0-9-]{4,80}$"
+          }
+        },
+        "selected_candidate_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^OFR-[A-Z0-9-]{4,80}$"
+        },
+        "candidate_rejections": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/candidateRejection"
+          }
+        },
+        "profit_formula_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "ranking_policy_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "decision_reproducible": {
+          "const": true
+        }
+      }
+    },
+    "moneyContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "currency",
+        "amount_unit",
+        "list_total_paise",
+        "discount_paise",
+        "final_total_paise",
+        "product_cost_paise",
+        "variable_cost_paise",
+        "contribution_profit_paise",
+        "contribution_margin_bps",
+        "profit_formula_version",
+        "price_source",
+        "customer_confirmation_status",
+        "server_total_revalidated",
+        "payment_status",
+        "capture_confirmed",
+        "order_marked_paid",
+        "fulfilment_authorized"
+      ],
+      "properties": {
+        "currency": {
+          "const": "INR"
+        },
+        "amount_unit": {
+          "const": "minor_units_paise"
+        },
+        "list_total_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "discount_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "final_total_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "product_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "variable_cost_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contribution_profit_paise": {
+          "type": "integer"
+        },
+        "contribution_margin_bps": {
+          "type": "integer",
+          "minimum": -100000,
+          "maximum": 10000
+        },
+        "profit_formula_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "price_source": {
+          "const": "server_catalog"
+        },
+        "customer_confirmation_status": {
+          "type": "string",
+          "enum": [
+            "not_required",
+            "awaiting_customer",
+            "confirmed",
+            "rejected",
+            "expired"
+          ]
+        },
+        "server_total_revalidated": {
+          "type": "boolean"
+        },
+        "payment_status": {
+          "type": "string",
+          "enum": [
+            "not_applicable",
+            "not_started",
+            "created",
+            "authorized",
+            "captured",
+            "failed",
+            "refunded",
+            "unknown"
+          ]
+        },
+        "capture_confirmed": {
+          "type": "boolean"
+        },
+        "order_marked_paid": {
+          "type": "boolean"
+        },
+        "fulfilment_authorized": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "capture_confirmed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payment_status": {
+                "const": "captured"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "order_marked_paid": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "capture_confirmed": {
+                "const": true
+              },
+              "payment_status": {
+                "const": "captured"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "gateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_id",
+        "gate_type",
+        "policy_version",
+        "result",
+        "blocks_action",
+        "reason_code",
+        "input_hash",
+        "observed_value",
+        "expected_value",
+        "checked_at"
+      ],
+      "properties": {
+        "gate_id": {
+          "type": "string",
+          "pattern": "^GATE-[A-Z0-9-]{3,80}$"
+        },
+        "gate_type": {
+          "type": "string",
+          "enum": [
+            "catalog",
+            "inventory",
+            "compatibility",
+            "skincare_safety",
+            "budget",
+            "authoritative_price",
+            "discount_policy",
+            "margin_floor",
+            "customer_confirmation",
+            "order_amount",
+            "payment_signature",
+            "webhook_signature",
+            "capture",
+            "idempotency",
+            "fulfilment"
+          ]
+        },
+        "policy_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "not_applicable",
+            "manual_review"
+          ]
+        },
+        "blocks_action": {
+          "type": "boolean"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "input_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observed_value": {
+          "type": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "null"
+          ]
+        },
+        "expected_value": {
+          "type": [
+            "string",
+            "number",
+            "integer",
+            "boolean",
+            "null"
+          ]
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "result": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "blocks_action": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    "stateChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state_domain",
+        "from_state",
+        "to_state",
+        "transition_applied",
+        "transition_reason_code",
+        "source_of_truth",
+        "late_or_out_of_order_event",
+        "version_before",
+        "version_after"
+      ],
+      "properties": {
+        "state_domain": {
+          "type": "string",
+          "enum": [
+            "intent",
+            "offer",
+            "discount",
+            "cart",
+            "confirmation",
+            "order",
+            "checkout",
+            "payment",
+            "webhook",
+            "fulfilment",
+            "recovery",
+            "system"
+          ]
+        },
+        "from_state": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 100
+        },
+        "to_state": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "transition_applied": {
+          "type": "boolean"
+        },
+        "transition_reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "source_of_truth": {
+          "type": "string",
+          "enum": [
+            "customer_action",
+            "validated_model_output",
+            "server_catalog",
+            "deterministic_backend",
+            "razorpay_api",
+            "verified_razorpay_webhook",
+            "operator_review"
+          ]
+        },
+        "late_or_out_of_order_event": {
+          "type": "boolean"
+        },
+        "version_before": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "version_after": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "transition_applied": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "version_after": {
+                "minimum": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "failure_code",
+        "classification",
+        "technical_detail",
+        "customer_safe_message",
+        "retryable",
+        "cart_retained",
+        "order_marked_paid",
+        "fulfilment_performed",
+        "fallback_action",
+        "stack_trace_in_event",
+        "secret_in_error"
+      ],
+      "properties": {
+        "failure_code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "validation_error",
+            "policy_violation",
+            "catalog_mismatch",
+            "inventory_unavailable",
+            "dependency_timeout",
+            "network_error",
+            "payment_declined",
+            "signature_invalid",
+            "duplicate_event",
+            "out_of_order_event",
+            "data_integrity_error",
+            "unknown"
+          ]
+        },
+        "technical_detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "description": "Sanitized operational detail with no credentials, secrets, raw signatures, or unnecessary personal data."
+        },
+        "customer_safe_message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "cart_retained": {
+          "type": "boolean"
+        },
+        "order_marked_paid": {
+          "type": "boolean"
+        },
+        "fulfilment_performed": {
+          "type": "boolean"
+        },
+        "fallback_action": {
+          "type": "string",
+          "enum": [
+            "ask_clarification",
+            "retain_cart_and_offer_retry",
+            "recommend_catalog_substitute",
+            "reject_unsafe_action",
+            "reject_unverified_event",
+            "ignore_duplicate",
+            "reconcile_with_razorpay_api",
+            "retry_dependency",
+            "request_manual_review",
+            "show_safe_error",
+            "no_action"
+          ]
+        },
+        "stack_trace_in_event": {
+          "const": false
+        },
+        "secret_in_error": {
+          "const": false
+        }
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "action",
+        "recovery_event_id",
+        "customer_initiated",
+        "safe_to_retry",
+        "reuses_existing_order",
+        "new_order_required",
+        "duplicate_fulfilment_prevention_enabled",
+        "result_reason_code"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_required",
+            "not_offered",
+            "offered",
+            "started",
+            "completed",
+            "failed"
+          ]
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "none",
+            "ask_clarification",
+            "retain_cart_and_offer_retry",
+            "recommend_catalog_substitute",
+            "ignore_duplicate",
+            "reject_unverified_event",
+            "reconcile_with_razorpay_api",
+            "retry_dependency",
+            "request_manual_review"
+          ]
+        },
+        "recovery_event_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/eventId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "customer_initiated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "safe_to_retry": {
+          "type": "boolean"
+        },
+        "reuses_existing_order": {
+          "type": "boolean"
+        },
+        "new_order_required": {
+          "type": "boolean"
+        },
+        "duplicate_fulfilment_prevention_enabled": {
+          "const": true
+        },
+        "result_reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_required"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "action": {
+                "const": "none"
+              },
+              "recovery_event_id": {
+                "type": "null"
+              },
+              "safe_to_retry": {
+                "const": false
+              },
+              "reuses_existing_order": {
+                "const": false
+              },
+              "new_order_required": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reuses_existing_order": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "safe_to_retry": {
+                "const": true
+              },
+              "new_order_required": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "explanation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "customer_message",
+        "merchant_detail",
+        "reason_codes",
+        "evidence_event_ids",
+        "decision_authority",
+        "medical_claim_made",
+        "internal_costs_disclosed_to_customer"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "customer_message": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "merchant_detail": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1500
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reasonCode"
+          }
+        },
+        "evidence_event_ids": {
+          "type": "array",
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/eventId"
+          }
+        },
+        "decision_authority": {
+          "type": "string",
+          "enum": [
+            "customer",
+            "deterministic_backend",
+            "razorpay_verified_state",
+            "operator_review",
+            "none"
+          ]
+        },
+        "medical_claim_made": {
+          "const": false
+        },
+        "internal_costs_disclosed_to_customer": {
+          "const": false
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "append_only",
+        "hash_algorithm",
+        "previous_event_hash",
+        "event_hash",
+        "payload_hash",
+        "schema_validation_passed",
+        "idempotency_key_unique",
+        "recorded_by_server",
+        "tamper_evident_chain_enabled"
+      ],
+      "properties": {
+        "append_only": {
+          "const": true
+        },
+        "hash_algorithm": {
+          "const": "SHA-256"
+        },
+        "previous_event_hash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "event_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "payload_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "schema_validation_passed": {
+          "const": true
+        },
+        "idempotency_key_unique": {
+          "const": true
+        },
+        "recorded_by_server": {
+          "const": true
+        },
+        "tamper_evident_chain_enabled": {
+          "const": true
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contains_direct_customer_identifier",
+        "contains_raw_customer_message",
+        "contains_raw_payment_credentials",
+        "contains_raw_card_data",
+        "contains_raw_upi_or_bank_credentials",
+        "contains_razorpay_key_secret",
+        "contains_webhook_secret",
+        "contains_unredacted_signature",
+        "contains_inferred_wealth",
+        "contains_protected_attribute_targeting",
+        "redacted_fields",
+        "internal_economics_visibility",
+        "retention_class",
+        "access_scope"
+      ],
+      "properties": {
+        "contains_direct_customer_identifier": {
+          "const": false
+        },
+        "contains_raw_customer_message": {
+          "const": false
+        },
+        "contains_raw_payment_credentials": {
+          "const": false
+        },
+        "contains_raw_card_data": {
+          "const": false
+        },
+        "contains_raw_upi_or_bank_credentials": {
+          "const": false
+        },
+        "contains_razorpay_key_secret": {
+          "const": false
+        },
+        "contains_webhook_secret": {
+          "const": false
+        },
+        "contains_unredacted_signature": {
+          "const": false
+        },
+        "contains_inferred_wealth": {
+          "const": false
+        },
+        "contains_protected_attribute_targeting": {
+          "const": false
+        },
+        "redacted_fields": {
+          "type": "array",
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "internal_economics_visibility": {
+          "type": "string",
+          "enum": [
+            "merchant_only",
+            "not_present"
+          ]
+        },
+        "retention_class": {
+          "type": "string",
+          "enum": [
+            "decision_audit",
+            "payment_operations",
+            "security_rejected_event",
+            "system_diagnostic"
+          ]
+        },
+        "access_scope": {
+          "type": "string",
+          "enum": [
+            "merchant_audit_view",
+            "restricted_payment_operations",
+            "restricted_security_operations",
+            "restricted_engineering"
+          ]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1.0.0",
+      "event_id": "EVT-20260824-0010",
+      "sequence": 10,
+      "occurred_at": "2026-08-24T10:00:20+05:30",
+      "recorded_at": "2026-08-24T10:00:20+05:30",
+      "event_name": "offer.selected",
+      "event_category": "offer",
+      "severity": "info",
+      "outcome": "selected",
+      "correlation": {
+        "trace_id": "TRACE-20260824-0001",
+        "session_id": "SESSION-DEMO-0001",
+        "parent_event_id": "EVT-20260824-0009",
+        "customer_intent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "decision_id": "DEC-20260824-0001",
+        "payment_record_id": null,
+        "internal_order_id": null,
+        "razorpay_order_id": null,
+        "payment_attempt_id": null,
+        "razorpay_payment_id": null,
+        "razorpay_event_id": null,
+        "idempotency_key": "offer-select-DEC-20260824-0001"
+      },
+      "actor": {
+        "actor_type": "backend_engine",
+        "actor_reference": "offer-ranker",
+        "authenticated": true,
+        "initiated_by_customer": false
+      },
+      "source": {
+        "service": "cartpilot",
+        "component": "offer_ranker",
+        "component_version": "1.0.0",
+        "environment": "test",
+        "code_revision": "planning-spec-1",
+        "model_identifier": null
+      },
+      "subject": {
+        "entity_type": "offer_decision",
+        "entity_id": "DEC-20260824-0001",
+        "snapshot_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+        "snapshot_reference": "offer-decisions/DEC-20260824-0001"
+      },
+      "action": {
+        "action_type": "select_offer",
+        "requested": true,
+        "authorized": true,
+        "executed": true,
+        "external_side_effect": false,
+        "customer_confirmation_required": false,
+        "customer_confirmation_present": false,
+        "authorization_gate_ids": [
+          "GATE-CATALOG-001",
+          "GATE-COMPAT-001",
+          "GATE-MARGIN-001"
+        ],
+        "blocked_reason_code": null
+      },
+      "request_context": {
+        "customer_request_summary": "Shopper wants a brightening routine within INR 1,500.",
+        "customer_message_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "intent_schema_version": "1.0.0",
+        "intent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "language": "en",
+        "requested_product_ids": [
+          "BND-002"
+        ],
+        "skin_types": [
+          "normal"
+        ],
+        "skin_concerns": [
+          "uneven_tone"
+        ],
+        "budget_paise": 150000,
+        "sanitized": true,
+        "raw_customer_message_stored": false
+      },
+      "catalog_context": {
+        "catalog_version": "1.0.0",
+        "configuration_versions": {
+          "product_variants": "1.0.0",
+          "merchant_economics": "1.0.0",
+          "product_compatibility": "1.0.0",
+          "discount_policy": "1.0.0"
+        },
+        "considered_product_ids": [
+          "BND-002",
+          "CLN-001",
+          "SRM-002",
+          "SUN-003"
+        ],
+        "considered_variant_ids": [
+          "BND-002-KIT"
+        ],
+        "selected_product_ids": [
+          "BND-002"
+        ],
+        "selected_variant_ids": [
+          "BND-002-KIT"
+        ],
+        "authoritative_price_source": "server_catalog",
+        "inventory_checked": true,
+        "compatibility_checked": true
+      },
+      "decision_context": {
+        "decision_id": "DEC-20260824-0001",
+        "decision_schema_version": "1.0.0",
+        "decision_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+        "selection_method": "deterministic_profit_policy",
+        "model_role": "intent_and_explanation_only",
+        "randomness_used": false,
+        "candidate_ids": [
+          "OFR-BRIGHT-BASE",
+          "OFR-BRIGHT-BUNDLE"
+        ],
+        "selected_candidate_id": "OFR-BRIGHT-BUNDLE",
+        "candidate_rejections": [
+          {
+            "candidate_id": "OFR-BRIGHT-BASE",
+            "reason_codes": [
+              "LOWER_CONTRIBUTION_PROFIT"
+            ]
+          }
+        ],
+        "profit_formula_version": "1.0.0",
+        "ranking_policy_version": "1.0.0",
+        "decision_reproducible": true
+      },
+      "money_context": {
+        "currency": "INR",
+        "amount_unit": "minor_units_paise",
+        "list_total_paise": 139900,
+        "discount_paise": 0,
+        "final_total_paise": 139900,
+        "product_cost_paise": 69000,
+        "variable_cost_paise": 12000,
+        "contribution_profit_paise": 58900,
+        "contribution_margin_bps": 4210,
+        "profit_formula_version": "1.0.0",
+        "price_source": "server_catalog",
+        "customer_confirmation_status": "awaiting_customer",
+        "server_total_revalidated": true,
+        "payment_status": "not_started",
+        "capture_confirmed": false,
+        "order_marked_paid": false,
+        "fulfilment_authorized": false
+      },
+      "gate_results": [
+        {
+          "gate_id": "GATE-CATALOG-001",
+          "gate_type": "catalog",
+          "policy_version": "1.0.0",
+          "result": "passed",
+          "blocks_action": false,
+          "reason_code": "ALL_VARIANTS_ACTIVE",
+          "input_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+          "observed_value": true,
+          "expected_value": true,
+          "checked_at": "2026-08-24T10:00:19+05:30"
+        },
+        {
+          "gate_id": "GATE-COMPAT-001",
+          "gate_type": "compatibility",
+          "policy_version": "1.0.0",
+          "result": "passed",
+          "blocks_action": false,
+          "reason_code": "BUNDLE_COMPATIBLE",
+          "input_hash": "6666666666666666666666666666666666666666666666666666666666666666",
+          "observed_value": "allow",
+          "expected_value": "allow",
+          "checked_at": "2026-08-24T10:00:19+05:30"
+        },
+        {
+          "gate_id": "GATE-MARGIN-001",
+          "gate_type": "margin_floor",
+          "policy_version": "1.0.0",
+          "result": "passed",
+          "blocks_action": false,
+          "reason_code": "MARGIN_FLOOR_PASSED",
+          "input_hash": "7777777777777777777777777777777777777777777777777777777777777777",
+          "observed_value": 4200,
+          "expected_value": 2500,
+          "checked_at": "2026-08-24T10:00:19+05:30"
+        }
+      ],
+      "state_change": {
+        "state_domain": "offer",
+        "from_state": "candidates_evaluated",
+        "to_state": "offer_selected",
+        "transition_applied": true,
+        "transition_reason_code": "HIGHEST_VALID_PROFIT_SCORE",
+        "source_of_truth": "deterministic_backend",
+        "late_or_out_of_order_event": false,
+        "version_before": 1,
+        "version_after": 2
+      },
+      "failure": null,
+      "recovery": {
+        "status": "not_required",
+        "action": "none",
+        "recovery_event_id": null,
+        "customer_initiated": null,
+        "safe_to_retry": false,
+        "reuses_existing_order": false,
+        "new_order_required": false,
+        "duplicate_fulfilment_prevention_enabled": true,
+        "result_reason_code": "NO_RECOVERY_REQUIRED"
+      },
+      "explanation": {
+        "summary": "The Brightening Starter Kit was selected by the deterministic profit policy.",
+        "customer_message": "This compatible three-step routine fits your INR 1,500 budget.",
+        "merchant_detail": "The selected bundle passed catalog, compatibility, inventory, budget, and margin gates and ranked above the product-only baseline on contribution profit.",
+        "reason_codes": [
+          "HIGHEST_VALID_PROFIT_SCORE",
+          "BUNDLE_COMPATIBLE",
+          "MARGIN_FLOOR_PASSED"
+        ],
+        "evidence_event_ids": [
+          "EVT-20260824-0009"
+        ],
+        "decision_authority": "deterministic_backend",
+        "medical_claim_made": false,
+        "internal_costs_disclosed_to_customer": false
+      },
+      "integrity": {
+        "append_only": true,
+        "hash_algorithm": "SHA-256",
+        "previous_event_hash": "8888888888888888888888888888888888888888888888888888888888888888",
+        "event_hash": "9999999999999999999999999999999999999999999999999999999999999999",
+        "payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "schema_validation_passed": true,
+        "idempotency_key_unique": true,
+        "recorded_by_server": true,
+        "tamper_evident_chain_enabled": true
+      },
+      "privacy": {
+        "contains_direct_customer_identifier": false,
+        "contains_raw_customer_message": false,
+        "contains_raw_payment_credentials": false,
+        "contains_raw_card_data": false,
+        "contains_raw_upi_or_bank_credentials": false,
+        "contains_razorpay_key_secret": false,
+        "contains_webhook_secret": false,
+        "contains_unredacted_signature": false,
+        "contains_inferred_wealth": false,
+        "contains_protected_attribute_targeting": false,
+        "redacted_fields": [],
+        "internal_economics_visibility": "merchant_only",
+        "retention_class": "decision_audit",
+        "access_scope": "merchant_audit_view"
+      }
+    },
+    {
+      "schema_version": "1.0.0",
+      "event_id": "EVT-20260824-0031",
+      "sequence": 31,
+      "occurred_at": "2026-08-24T10:03:00+05:30",
+      "recorded_at": "2026-08-24T10:03:01+05:30",
+      "event_name": "payment.failed",
+      "event_category": "payment",
+      "severity": "error",
+      "outcome": "failed",
+      "correlation": {
+        "trace_id": "TRACE-20260824-0001",
+        "session_id": "SESSION-DEMO-0001",
+        "parent_event_id": "EVT-20260824-0030",
+        "customer_intent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "decision_id": "DEC-20260824-0001",
+        "payment_record_id": "PAYREC-20260824-0001",
+        "internal_order_id": "ORD-20260824-0001",
+        "razorpay_order_id": "order_DEMO123456789",
+        "payment_attempt_id": "ATT-20260824-0001",
+        "razorpay_payment_id": "pay_DEMO123456789",
+        "razorpay_event_id": "demo_event_payment_failed_001",
+        "idempotency_key": "payment-failed-demo_event_payment_failed_001"
+      },
+      "actor": {
+        "actor_type": "razorpay_webhook",
+        "actor_reference": "verified-webhook",
+        "authenticated": true,
+        "initiated_by_customer": false
+      },
+      "source": {
+        "service": "cartpilot",
+        "component": "payment_state_engine",
+        "component_version": "1.0.0",
+        "environment": "test",
+        "code_revision": "planning-spec-1",
+        "model_identifier": null
+      },
+      "subject": {
+        "entity_type": "payment_attempt",
+        "entity_id": "ATT-20260824-0001",
+        "snapshot_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "snapshot_reference": "payment-records/PAYREC-20260824-0001/attempts/ATT-20260824-0001"
+      },
+      "action": {
+        "action_type": "update_payment_state",
+        "requested": true,
+        "authorized": true,
+        "executed": true,
+        "external_side_effect": false,
+        "customer_confirmation_required": false,
+        "customer_confirmation_present": true,
+        "authorization_gate_ids": [
+          "GATE-WEBHOOK-SIGNATURE-001",
+          "GATE-WEBHOOK-IDEMPOTENCY-001"
+        ],
+        "blocked_reason_code": null
+      },
+      "request_context": null,
+      "catalog_context": null,
+      "decision_context": null,
+      "money_context": {
+        "currency": "INR",
+        "amount_unit": "minor_units_paise",
+        "list_total_paise": 139900,
+        "discount_paise": 0,
+        "final_total_paise": 139900,
+        "product_cost_paise": 69000,
+        "variable_cost_paise": 12000,
+        "contribution_profit_paise": 58900,
+        "contribution_margin_bps": 4210,
+        "profit_formula_version": "1.0.0",
+        "price_source": "server_catalog",
+        "customer_confirmation_status": "confirmed",
+        "server_total_revalidated": true,
+        "payment_status": "failed",
+        "capture_confirmed": false,
+        "order_marked_paid": false,
+        "fulfilment_authorized": false
+      },
+      "gate_results": [
+        {
+          "gate_id": "GATE-WEBHOOK-SIGNATURE-001",
+          "gate_type": "webhook_signature",
+          "policy_version": "1.0.0",
+          "result": "passed",
+          "blocks_action": false,
+          "reason_code": "WEBHOOK_SIGNATURE_VERIFIED",
+          "input_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "observed_value": true,
+          "expected_value": true,
+          "checked_at": "2026-08-24T10:03:00+05:30"
+        },
+        {
+          "gate_id": "GATE-WEBHOOK-IDEMPOTENCY-001",
+          "gate_type": "idempotency",
+          "policy_version": "1.0.0",
+          "result": "passed",
+          "blocks_action": false,
+          "reason_code": "WEBHOOK_EVENT_ID_UNSEEN",
+          "input_hash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "observed_value": "new_event",
+          "expected_value": "new_event",
+          "checked_at": "2026-08-24T10:03:00+05:30"
+        },
+        {
+          "gate_id": "GATE-CAPTURE-001",
+          "gate_type": "capture",
+          "policy_version": "1.0.0",
+          "result": "failed",
+          "blocks_action": true,
+          "reason_code": "PAYMENT_NOT_CAPTURED",
+          "input_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "observed_value": "failed",
+          "expected_value": "captured",
+          "checked_at": "2026-08-24T10:03:00+05:30"
+        }
+      ],
+      "state_change": {
+        "state_domain": "payment",
+        "from_state": "payment_pending",
+        "to_state": "payment_failed",
+        "transition_applied": true,
+        "transition_reason_code": "VERIFIED_PAYMENT_FAILURE",
+        "source_of_truth": "verified_razorpay_webhook",
+        "late_or_out_of_order_event": false,
+        "version_before": 5,
+        "version_after": 6
+      },
+      "failure": {
+        "failure_code": "PAYMENT_FAILED",
+        "classification": "payment_declined",
+        "technical_detail": "A verified test-mode payment.failed webhook was accepted; sanitized failure metadata is retained separately.",
+        "customer_safe_message": "The payment was not completed. Your cart is still available and you can safely try again.",
+        "retryable": true,
+        "cart_retained": true,
+        "order_marked_paid": false,
+        "fulfilment_performed": false,
+        "fallback_action": "retain_cart_and_offer_retry",
+        "stack_trace_in_event": false,
+        "secret_in_error": false
+      },
+      "recovery": {
+        "status": "offered",
+        "action": "retain_cart_and_offer_retry",
+        "recovery_event_id": null,
+        "customer_initiated": null,
+        "safe_to_retry": true,
+        "reuses_existing_order": true,
+        "new_order_required": false,
+        "duplicate_fulfilment_prevention_enabled": true,
+        "result_reason_code": "SAFE_RETRY_AVAILABLE"
+      },
+      "explanation": {
+        "summary": "A verified payment failure was recorded without marking the order paid or authorizing fulfilment.",
+        "customer_message": "The payment was not completed. Your cart is still available and you can safely try again.",
+        "merchant_detail": "The signed webhook was new and valid, the payment moved from pending to failed, the cart was retained, and idempotency protection remains active for any retry or late authorization.",
+        "reason_codes": [
+          "PAYMENT_FAILED",
+          "PAYMENT_NOT_CAPTURED",
+          "SAFE_RETRY_AVAILABLE"
+        ],
+        "evidence_event_ids": [
+          "EVT-20260824-0030"
+        ],
+        "decision_authority": "razorpay_verified_state",
+        "medical_claim_made": false,
+        "internal_costs_disclosed_to_customer": false
+      },
+      "integrity": {
+        "append_only": true,
+        "hash_algorithm": "SHA-256",
+        "previous_event_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "event_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "payload_hash": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "schema_validation_passed": true,
+        "idempotency_key_unique": true,
+        "recorded_by_server": true,
+        "tamper_evident_chain_enabled": true
+      },
+      "privacy": {
+        "contains_direct_customer_identifier": false,
+        "contains_raw_customer_message": false,
+        "contains_raw_payment_credentials": false,
+        "contains_raw_card_data": false,
+        "contains_raw_upi_or_bank_credentials": false,
+        "contains_razorpay_key_secret": false,
+        "contains_webhook_secret": false,
+        "contains_unredacted_signature": false,
+        "contains_inferred_wealth": false,
+        "contains_protected_attribute_targeting": false,
+        "redacted_fields": [
+          "payment.error_metadata"
+        ],
+        "internal_economics_visibility": "merchant_only",
+        "retention_class": "payment_operations",
+        "access_scope": "restricted_payment_operations"
+      }
+    }
+  ],
+  "$comment": "The audit store is append-only. Application state may change, but past audit events are never edited or deleted by normal business flows. The event payload records sanitized summaries, hashes, policy versions, reason codes, gates, calculations, and references to protected evidence. It must never contain Razorpay key secrets, webhook secrets, raw signatures, card data, UPI or bank credentials, direct customer identifiers, inferred wealth, or protected-attribute targeting."
+}

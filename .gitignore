@@ -1,0 +1,30 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# Next.js
+/.next/
+/out/
+
+# production
+/build
+
+# local secrets
+.env*
+!.env.example
+
+# tests
+/coverage/
+/playwright-report/
+/test-results/
+
+# deployment
+.vercel
+
+# logs and local files
+*.log
+.DS_Store
+Thumbs.db
+*.tsbuildinfo
+next-env.d.ts

@@ -1,0 +1,241 @@
+{
+  "policy_id": "CARTPILOT-DISCOUNT-POLICY",
+  "version": "1.0.0",
+  "status": "draft_demo",
+  "effective_date": "2026-08-24",
+  "currency": "INR",
+  "amount_unit": "minor_units_paise",
+  "objective": "maximize_expected_contribution_profit",
+  "decision_mode": "deterministic",
+  "random_offer_selection": false,
+  "description": "Merchant-controlled discount rules for CartPilot. Discounts are candidate actions, not defaults, and cannot bypass product, compatibility, margin, budget, approval, or payment policies.",
+  "authoritative_sources": {
+    "variant_price": "product_variants.csv.price_inr converted to paise at ingestion",
+    "variant_discount_cap": "merchant_economics.csv.max_discount_pct",
+    "variant_margin_floor": "merchant_economics.csv.min_contribution_margin_inr converted to paise at ingestion",
+    "variant_costs": "merchant_economics.csv",
+    "bundle_contents": "bundle_components.csv"
+  },
+  "global_guards": {
+    "test_mode_only": true,
+    "customer_confirmation_required": true,
+    "show_original_price": true,
+    "show_discount_amount": true,
+    "show_final_price": true,
+    "show_offer_reason": true,
+    "allow_discount_stacking": false,
+    "maximum_dynamic_discounts_per_session": 1,
+    "allow_additional_dynamic_discount_on_prepriced_bundles": false,
+    "minimum_cart_contribution_margin_paise": 10000,
+    "minimum_cart_contribution_margin_bps": 2500,
+    "minimum_incremental_contribution_profit_paise": 2000,
+    "minimum_offer_score_improvement_bps": 250,
+    "discount_rounding": "nearest_paise_half_up",
+    "discount_allocation": "proportional_by_eligible_item_subtotal",
+    "allocation_remainder_rule": "assign_to_highest_priced_eligible_item",
+    "price_floor_rule": "never_below_variant_or_cart_margin_floor",
+    "offer_validity": "current_session_without_artificial_urgency"
+  },
+  "pre_discount_comparisons": [
+    "no_additional_offer",
+    "requested_product_without_discount",
+    "compatible_cross_sell_without_discount",
+    "compatible_bundle_without_discount",
+    "lower_priced_compatible_substitute",
+    "smaller_compatible_routine"
+  ],
+  "discount_ladder_pct": [
+    0,
+    3,
+    5,
+    8,
+    10,
+    12,
+    15
+  ],
+  "trigger_rules": [
+    {
+      "trigger_id": "PRICE_OBJECTION",
+      "enabled": true,
+      "detection": "customer_explicitly_states_that_the_price_is_too_high",
+      "allowed_discount_pct": [3, 5, 8],
+      "eligible_targets": [
+        "single_product",
+        "generated_bundle",
+        "cross_sell_item"
+      ],
+      "requirements": [
+        "un_discounted_candidate_was_presented",
+        "customer_has_not_already_accepted_the_un_discounted_candidate",
+        "discounted_candidate_beats_valid_non_discount_alternatives"
+      ]
+    },
+    {
+      "trigger_id": "BUDGET_GAP",
+      "enabled": true,
+      "detection": "best_compatible_candidate_is_slightly_above_explicit_customer_budget",
+      "maximum_gap_paise": 15000,
+      "maximum_gap_bps_of_budget": 1000,
+      "allowed_discount_pct": [3, 5, 8, 10],
+      "eligible_targets": [
+        "single_product",
+        "generated_bundle"
+      ],
+      "requirements": [
+        "customer_budget_is_explicit",
+        "lower_priced_compatible_substitute_was_evaluated",
+        "smaller_compatible_routine_was_evaluated",
+        "discount_is_the_smallest_allowed_step_that_can_close_the_gap"
+      ]
+    },
+    {
+      "trigger_id": "ITEM_REMOVED_FOR_PRICE",
+      "enabled": true,
+      "detection": "customer_explicitly_removes_an_item_because_of_price",
+      "allowed_discount_pct": [3, 5, 8],
+      "eligible_targets": [
+        "removed_item",
+        "generated_bundle"
+      ],
+      "requirements": [
+        "removed_item_remains_compatible",
+        "discounted_readdition_increases_valid_contribution_profit"
+      ]
+    },
+    {
+      "trigger_id": "APPROVED_CAMPAIGN",
+      "enabled": true,
+      "detection": "merchant_approved_campaign_identifier_is_present_and_active",
+      "allowed_discount_pct": [5, 8, 10, 12, 15],
+      "eligible_targets": [
+        "campaign_eligible_product",
+        "campaign_eligible_generated_bundle"
+      ],
+      "requirements": [
+        "campaign_is_active",
+        "product_is_campaign_eligible",
+        "campaign_cap_does_not_exceed_variant_cap"
+      ]
+    }
+  ],
+  "cross_sell_policy": {
+    "maximum_cross_sell_items_per_cycle": 1,
+    "discount_allowed": true,
+    "allowed_discount_pct": [3, 5],
+    "discount_target": "cross_sell_item_only",
+    "requirements": [
+      "cross_sell_is_catalog_compatible",
+      "cross_sell_fits_explicit_budget_or_customer_accepts_new_total",
+      "discounted_cross_sell_beats_no_cross_sell_on_offer_score",
+      "incremental_contribution_profit_meets_global_floor"
+    ]
+  },
+  "threshold_incentives": [
+    {
+      "offer_id": "CART_THRESHOLD_999",
+      "enabled": true,
+      "minimum_eligible_subtotal_paise": 99900,
+      "discount_paise": 5000,
+      "eligible_target": "eligible_cart_items",
+      "customer_message": "Save ₹50 on an eligible cart of ₹999 or more",
+      "data_status": "draft_demo"
+    },
+    {
+      "offer_id": "CART_THRESHOLD_1499",
+      "enabled": true,
+      "minimum_eligible_subtotal_paise": 149900,
+      "discount_paise": 10000,
+      "eligible_target": "eligible_cart_items",
+      "customer_message": "Save ₹100 on an eligible cart of ₹1,499 or more",
+      "data_status": "draft_demo"
+    }
+  ],
+  "candidate_validation_order": [
+    "trigger_is_valid",
+    "target_is_discount_eligible",
+    "discount_is_in_allowed_ladder",
+    "discount_does_not_exceed_variant_cap",
+    "discount_does_not_stack",
+    "catalog_and_compatibility_rules_pass",
+    "stock_rules_pass",
+    "customer_budget_rule_passes",
+    "variant_margin_floors_pass",
+    "cart_margin_floors_pass",
+    "incremental_profit_floor_passes",
+    "offer_score_improvement_passes"
+  ],
+  "selection_rules": {
+    "choose_no_discount_when": [
+      "no_valid_discount_trigger_exists",
+      "un_discounted_candidate_already_has_equal_or_higher_offer_score",
+      "discount_fails_any_hard_guard",
+      "discount_is_not_needed_to_close_an_allowed_budget_gap"
+    ],
+    "choose_smallest_effective_discount": true,
+    "compare_against_baseline": true,
+    "reject_negative_incremental_profit": true,
+    "tie_breakers_in_order": [
+      "higher_offer_score",
+      "higher_contribution_profit_paise",
+      "lower_discount_paise",
+      "fewer_added_products",
+      "lower_customer_total_paise",
+      "lexicographically_smaller_offer_id"
+    ]
+  },
+  "allowed_decision_signals": [
+    "explicit_customer_budget",
+    "explicit_price_objection",
+    "explicit_item_removal_reason",
+    "current_cart_contents",
+    "catalog_relevance",
+    "product_compatibility",
+    "product_and_cart_unit_economics",
+    "current_inventory",
+    "active_merchant_campaign",
+    "customer_acceptance_or_rejection_within_current_session"
+  ],
+  "disallowed_decision_signals": [
+    "race_or_ethnicity",
+    "religion_or_caste",
+    "gender_or_sexual_orientation",
+    "disability_or_health_diagnosis",
+    "inferred_income_or_wealth",
+    "device_price_as_wealth_proxy",
+    "unrelated_location_or_demographics",
+    "secret_customer_specific_base_price",
+    "artificial_scarcity_or_fabricated_urgency"
+  ],
+  "audit_requirements": [
+    "policy_id_and_version",
+    "trigger_id_or_no_trigger_reason",
+    "catalog_and_configuration_versions",
+    "baseline_candidate",
+    "all_discount_candidates",
+    "discount_percentage_and_amount_paise",
+    "variant_caps_and_margin_floors",
+    "profit_breakdown_before_and_after_discount",
+    "offer_score_before_and_after_discount",
+    "rejection_reason_codes",
+    "selected_offer_reason",
+    "customer_confirmation_event"
+  ],
+  "reason_codes": {
+    "NO_DISCOUNT_TRIGGER": "No approved discount trigger was present",
+    "NO_DISCOUNT_ALREADY_PROFITABLE": "The un-discounted offer was already the best valid action",
+    "DISCOUNT_NOT_IN_LADDER": "The proposed discount was not an approved ladder step",
+    "DISCOUNT_EXCEEDS_VARIANT_CAP": "The proposed discount exceeded a variant-level cap",
+    "DISCOUNT_STACKING_BLOCKED": "The offer attempted to combine multiple discounts",
+    "PREPRICED_BUNDLE_INELIGIBLE": "The bundle already has a customer saving and cannot receive another dynamic discount",
+    "BUDGET_GAP_TOO_LARGE": "The difference from the customer budget exceeded the allowed gap",
+    "LOWER_PRICE_SUBSTITUTE_PREFERRED": "A compatible lower-priced product was preferred to discounting",
+    "SMALLER_ROUTINE_PREFERRED": "A smaller compatible routine was preferred to discounting",
+    "BELOW_VARIANT_MARGIN_FLOOR": "The discounted variant would violate its contribution-margin floor",
+    "BELOW_CART_MARGIN_FLOOR": "The discounted cart would violate the merchant's cart margin floor",
+    "INSUFFICIENT_INCREMENTAL_PROFIT": "The discount did not produce the required incremental profit",
+    "INSUFFICIENT_SCORE_IMPROVEMENT": "The discount did not improve the deterministic offer score enough",
+    "DISALLOWED_SIGNAL": "The decision attempted to use a prohibited customer signal",
+    "DISCOUNT_APPROVED": "The smallest valid profit-positive discount was selected",
+    "CUSTOMER_CONFIRMATION_REQUIRED": "The offer cannot create an order until the customer confirms the exact total"
+  }
+}

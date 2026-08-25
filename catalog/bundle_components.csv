@@ -1,0 +1,16 @@
+bundle_product_id,bundle_variant_id,component_product_id,component_variant_id,quantity,component_role,display_order,required,active,data_status
+BND-001,BND-001-KIT,CLN-002,CLN-002-100ML,1,cleanse,1,true,true,draft_demo
+BND-001,BND-001-KIT,SRM-001,SRM-001-15ML,1,treat,2,true,true,draft_demo
+BND-001,BND-001-KIT,MST-001,MST-001-50G,1,moisturize,3,true,true,draft_demo
+BND-002,BND-002-KIT,CLN-001,CLN-001-100ML,1,cleanse,1,true,true,draft_demo
+BND-002,BND-002-KIT,SRM-002,SRM-002-15ML,1,treat,2,true,true,draft_demo
+BND-002,BND-002-KIT,SUN-003,SUN-003-50G,1,protect,3,true,true,draft_demo
+BND-003,BND-003-KIT,CLN-001,CLN-001-200ML,1,cleanse,1,true,true,draft_demo
+BND-003,BND-003-KIT,SRM-003,SRM-003-15ML,1,hydrate,2,true,true,draft_demo
+BND-003,BND-003-KIT,MST-002,MST-002-50G,1,moisturize,3,true,true,draft_demo
+BND-004,BND-004-KIT,CLN-001,CLN-001-100ML,1,cleanse,1,true,true,draft_demo
+BND-004,BND-004-KIT,MST-004,MST-004-50G,1,moisturize,2,true,true,draft_demo
+BND-004,BND-004-KIT,SUN-003,SUN-003-50G,1,protect,3,true,true,draft_demo
+BND-005,BND-005-KIT,CLN-005,CLN-005-150ML,1,cleanse,1,true,true,draft_demo
+BND-005,BND-005-KIT,SRM-001,SRM-001-15ML,1,treat,2,true,true,draft_demo
+BND-005,BND-005-KIT,SUN-001,SUN-001-50G,1,protect,3,true,true,draft_demo

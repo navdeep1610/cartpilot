@@ -1,0 +1,146 @@
+import {
+  appendAuditEvent,
+  DatabaseConfigurationError,
+  findPaymentRecord,
+  getSupabaseAdmin,
+  type StoredPaymentRecord,
+} from "@/server/database/supabase-admin";
+import {
+  fetchRazorpayTestPaymentEvidence,
+  PaymentConfigurationError,
+} from "@/server/payments/razorpay-test-adapter";
+import { reconcileRazorpayPayment } from "@/server/payments/reconcile-razorpay-payment";
+
+export const runtime = "nodejs";
+
+export async function POST(
+  _request: Request,
+  context: { params: Promise<{ recordId: string }> },
+) {
+  if (process.env.NODE_ENV === "production") {
+    return safeResponse(
+      { error: "MERCHANT_AUTH_REQUIRED", message: "Merchant payment actions stay disabled online until authentication is configured." },
+      403,
+    );
+  }
+
+  const { recordId } = await context.params;
+  if (!/^PAYREC-[A-Z0-9-]{8,80}$/.test(recordId)) {
+    return safeResponse({ error: "INVALID_PAYMENT_RECORD", message: "The order reference is invalid." }, 400);
+  }
+
+  try {
+    const record = await findPaymentRecord(recordId);
+    if (!record || !record.razorpay_order_id) {
+      return safeResponse({ error: "ORDER_NOT_FOUND", message: "This Supabase order could not be found." }, 404);
+    }
+    if (record.fulfilment_authorized && record.capture_confirmed) {
+      return safeResponse({
+        reconciled: true,
+        state: record.state,
+        fulfilmentAuthorized: true,
+        message: "This order is already confirmed as paid and ready to pack.",
+      });
+    }
+    if (!record.razorpay_payment_id) {
+      return safeResponse(
+        { error: "PAYMENT_ID_PENDING", message: "Razorpay has not returned a payment ID for this order yet." },
+        409,
+      );
+    }
+
+    const evidence = await fetchRazorpayTestPaymentEvidence({
+      paymentId: record.razorpay_payment_id,
+      orderId: record.razorpay_order_id,
+    });
+    const decision = reconcileRazorpayPayment(record, evidence);
+
+    if (!decision.evidenceMatched) {
+      await appendRecheckAudit(record, "failure", decision.reasonCode, evidence, false);
+      return safeResponse(
+        {
+          error: "PAYMENT_EVIDENCE_MISMATCH",
+          message: decision.message,
+          fulfilmentAuthorized: false,
+        },
+        409,
+      );
+    }
+
+    let storedRecord = record;
+    if (decision.update) {
+      let updateQuery = getSupabaseAdmin()
+        .from("payment_records")
+        .update({ ...decision.update, updated_at: new Date().toISOString() })
+        .eq("payment_record_id", record.payment_record_id);
+      if (decision.status !== "captured") updateQuery = updateQuery.eq("capture_confirmed", false);
+      const { data, error } = await updateQuery.select("*").maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        const concurrentRecord = await findPaymentRecord(record.payment_record_id);
+        if (!concurrentRecord) throw new Error("Payment record changed during reconciliation");
+        storedRecord = concurrentRecord;
+      } else {
+        storedRecord = data as StoredPaymentRecord;
+        if (record.state !== decision.nextState) {
+          const { error: transitionError } = await getSupabaseAdmin().from("payment_transitions").insert({
+            payment_record_id: record.payment_record_id,
+            from_state: record.state,
+            to_state: decision.nextState,
+            trigger: "merchant_api_recheck",
+            source: "razorpay_payments_api",
+            applied: true,
+            reason_code: decision.reasonCode,
+          });
+          if (transitionError) throw transitionError;
+        }
+      }
+    }
+
+    await appendRecheckAudit(record, "success", decision.reasonCode, evidence, storedRecord.fulfilment_authorized);
+    return safeResponse({
+      reconciled: decision.status === "captured" || decision.status === "failed" || decision.status === "refunded",
+      state: storedRecord.state,
+      paymentStatus: decision.status,
+      captureConfirmed: storedRecord.capture_confirmed,
+      fulfilmentAuthorized: storedRecord.fulfilment_authorized,
+      message: decision.message,
+    });
+  } catch (error) {
+    if (error instanceof PaymentConfigurationError) {
+      return safeResponse({ error: "RAZORPAY_SETUP_REQUIRED", message: "Razorpay Test Mode is not connected." }, 503);
+    }
+    if (error instanceof DatabaseConfigurationError) {
+      return safeResponse({ error: "SUPABASE_SETUP_REQUIRED", message: "Supabase order storage is unavailable." }, 503);
+    }
+    return safeResponse({ error: "PAYMENT_RECHECK_FAILED", message: "Razorpay could not be checked safely just now. Try again shortly." }, 502);
+  }
+}
+
+async function appendRecheckAudit(
+  record: StoredPaymentRecord,
+  outcome: "success" | "failure",
+  reasonCode: string,
+  evidence: Awaited<ReturnType<typeof fetchRazorpayTestPaymentEvidence>>,
+  fulfilmentAuthorized: boolean,
+) {
+  await appendAuditEvent({
+    traceId: record.payment_record_id,
+    eventType: outcome === "success" ? "payment.api_recheck_completed" : "payment.api_recheck_rejected",
+    actorType: "merchant",
+    outcome,
+    reasonCode,
+    resourceId: record.payment_record_id,
+    evidence: {
+      razorpayPaymentStatus: evidence.payment.status,
+      razorpayOrderStatus: evidence.order.status,
+      amountMatched: evidence.payment.amountPaise === record.amount_paise,
+      captureConfirmed: evidence.payment.captured,
+      fulfilmentAuthorized,
+    },
+  });
+}
+
+function safeResponse(body: Record<string, unknown>, status = 200) {
+  return Response.json(body, { status, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+}

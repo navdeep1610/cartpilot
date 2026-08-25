@@ -1,0 +1,938 @@
+{
+  "manifest_id": "CARTPILOT-CATALOG-MANIFEST",
+  "manifest_version": "1.0.1",
+  "catalog_version": "1.0.0",
+  "snapshot_date": "2026-08-24",
+  "status": "preimplementation_draft",
+  "environment": "test",
+  "merchant_id": "CARTPILOT-DEMO-SKINCARE-MERCHANT",
+  "merchant_display_name": "CartPilot Demo Skincare Store",
+  "currency": "INR",
+  "amount_unit": "minor_units_paise_after_ingestion",
+  "default_locale": "en-IN",
+  "default_timezone": "Asia/Kolkata",
+  "description": "Versioned loading, visibility, integrity, dependency, and validation contract for the CartPilot skincare catalog and deterministic commercial policies.",
+  "runtime_catalog_root": "catalog",
+  "schema_root": "schemas",
+  "path_convention": "project_root_relative_forward_slashes",
+  "checksum": {
+    "algorithm": "SHA-256",
+    "encoding": "lowercase_hex",
+    "scope": "exact_file_bytes",
+    "verification_stage": "before_parse",
+    "mismatch_action": "reject_snapshot_and_keep_last_valid_snapshot",
+    "manifest_self_checksum_included": false,
+    "manifest_checksum_strategy": "compute_at_build_or_startup_and_store_with_loaded_snapshot"
+  },
+  "release_boundaries": {
+    "razorpay_mode": "test_only",
+    "customer_catalog_can_be_displayed": true,
+    "merchant_economics_can_be_displayed_to_customer": false,
+    "ranking_weights_can_be_displayed_to_customer": false,
+    "internal_profit_can_be_displayed_to_customer": false,
+    "expert_review_complete": false,
+    "production_use_authorized": false,
+    "medical_diagnosis_or_treatment_claims_authorized": false,
+    "catalog_guidance_only": true
+  },
+  "expected_snapshot": {
+    "product_count": 40,
+    "variant_count": 74,
+    "merchant_economics_row_count": 74,
+    "product_profile_count": 40,
+    "compatibility_rule_count": 89,
+    "bundle_count": 5,
+    "bundle_component_row_count": 15,
+    "evaluation_scenario_count": 35,
+    "product_type_counts": {
+      "Acne Treatment": 2,
+      "Bundle": 5,
+      "Cleanser": 5,
+      "Exfoliant": 3,
+      "Eye Care": 2,
+      "Lip Care": 2,
+      "Mask": 3,
+      "Moisturizer": 4,
+      "Serum": 7,
+      "Sunscreen": 4,
+      "Toner": 3
+    }
+  },
+  "catalog_resources": [
+    {
+      "resource_id": "customer_catalog",
+      "path": "catalog/customer_catalog.csv",
+      "format": "csv_rfc4180_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 10,
+      "visibility": "customer_public_projection_source",
+      "runtime_role": "product_identity_and_customer_copy",
+      "row_count": 40,
+      "primary_key": [
+        "product_id"
+      ],
+      "columns": [
+        "product_id",
+        "product_type",
+        "product_name",
+        "starting_price_inr",
+        "sizes_available",
+        "use_case",
+        "status"
+      ],
+      "authoritative_for": [
+        "product_identity",
+        "product_type",
+        "product_name",
+        "customer_use_case_copy",
+        "product_active_status"
+      ],
+      "denormalized_fields": {
+        "starting_price_inr": "must_equal_minimum_active_variant_price_inr",
+        "sizes_available": "must_equal_the_display_ordered_active_variant_sizes"
+      },
+      "depends_on": [],
+      "data_status_counts": {
+        "active": 40
+      },
+      "sha256": "e75e2ac83155e26447f0dc0ae0c9c7b434913f08972731c1a15e1d51ae5dcda1",
+      "failure_mode": "fatal_startup_error"
+    },
+    {
+      "resource_id": "product_variants",
+      "path": "catalog/product_variants.csv",
+      "format": "csv_rfc4180_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 20,
+      "visibility": "backend_internal_with_safe_customer_projection",
+      "runtime_role": "authoritative_sellable_skus_prices_and_inventory",
+      "row_count": 74,
+      "primary_key": [
+        "variant_id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references": "customer_catalog.product_id"
+        }
+      ],
+      "columns": [
+        "variant_id",
+        "product_id",
+        "size",
+        "price_inr",
+        "currency",
+        "stock_quantity",
+        "is_default",
+        "active",
+        "data_status"
+      ],
+      "authoritative_for": [
+        "variant_identity",
+        "size",
+        "selling_price",
+        "currency",
+        "inventory_quantity",
+        "default_variant",
+        "variant_active_status"
+      ],
+      "customer_projection": {
+        "allowed_fields": [
+          "variant_id",
+          "product_id",
+          "size",
+          "price_inr",
+          "currency",
+          "is_default"
+        ],
+        "derived_fields": {
+          "in_stock": "stock_quantity_greater_than_zero_and_active_is_true"
+        },
+        "blocked_fields": [
+          "stock_quantity",
+          "data_status"
+        ]
+      },
+      "depends_on": [
+        "customer_catalog"
+      ],
+      "data_status_counts": {
+        "draft_demo": 74
+      },
+      "sha256": "f30e7b5ee286aa97b39d54f364c047a2c2d637680030b96ee6c478af60c85a3d",
+      "failure_mode": "fatal_startup_error"
+    },
+    {
+      "resource_id": "merchant_economics",
+      "path": "catalog/merchant_economics.csv",
+      "format": "csv_rfc4180_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 30,
+      "visibility": "merchant_private",
+      "runtime_role": "authoritative_cost_discount_cap_and_margin_floor_inputs",
+      "row_count": 74,
+      "primary_key": [
+        "variant_id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "variant_id"
+          ],
+          "references": "product_variants.variant_id"
+        }
+      ],
+      "columns": [
+        "variant_id",
+        "unit_cost_inr",
+        "packaging_cost_inr",
+        "fulfilment_cost_inr",
+        "expected_return_rate_pct",
+        "return_processing_cost_inr",
+        "min_contribution_margin_inr",
+        "max_discount_pct",
+        "inventory_priority",
+        "data_status"
+      ],
+      "authoritative_for": [
+        "unit_cost",
+        "packaging_cost",
+        "fulfilment_cost",
+        "expected_return_rate",
+        "return_processing_cost",
+        "variant_contribution_floor",
+        "variant_discount_cap",
+        "inventory_priority"
+      ],
+      "customer_api_exposed": false,
+      "customer_log_exposed": false,
+      "depends_on": [
+        "product_variants"
+      ],
+      "data_status_counts": {
+        "draft_demo": 74
+      },
+      "sha256": "8d6ebe21390325a6098ca49cdc513b08c14054d82bb7a058d9373112e458afd4",
+      "failure_mode": "fatal_startup_error"
+    },
+    {
+      "resource_id": "product_profiles",
+      "path": "catalog/product_profiles.csv",
+      "format": "csv_rfc4180_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 40,
+      "visibility": "backend_internal_with_reviewed_customer_copy_projection",
+      "runtime_role": "routine_relevance_suitability_warnings_and_clarification_policy",
+      "row_count": 40,
+      "primary_key": [
+        "product_id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "product_id"
+          ],
+          "references": "customer_catalog.product_id"
+        }
+      ],
+      "columns": [
+        "product_id",
+        "routine_step",
+        "routine_order",
+        "product_format",
+        "declared_actives",
+        "supported_skin_types",
+        "supported_concerns",
+        "usage_period",
+        "usage_frequency",
+        "daytime_spf_rule",
+        "recommendation_mode",
+        "exclusion_flags",
+        "customer_warning",
+        "ingredient_data_status",
+        "safety_source_url",
+        "review_status"
+      ],
+      "authoritative_for": [
+        "routine_step",
+        "routine_order",
+        "catalog_supported_skin_types",
+        "catalog_supported_concerns",
+        "recommendation_mode",
+        "exclusion_flags",
+        "catalog_customer_warning"
+      ],
+      "review_boundary": {
+        "current_status": "draft_expert_review",
+        "all_rows_reviewed_for_production": false,
+        "missing_ingredient_data_is_not_assumed_safe": true,
+        "medical_claims_allowed": false
+      },
+      "depends_on": [
+        "customer_catalog"
+      ],
+      "data_status_counts": {
+        "draft_expert_review": 40
+      },
+      "sha256": "c4b1a6a24e9f1c062c40ceb371d2a872cba64cc70c5f6c31ef034df43697e275",
+      "failure_mode": "fatal_for_automatic_recommendations"
+    },
+    {
+      "resource_id": "product_compatibility",
+      "path": "catalog/product_compatibility.csv",
+      "format": "csv_rfc4180_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 50,
+      "visibility": "backend_internal_with_customer_reason_projection",
+      "runtime_role": "pairwise_complement_substitute_redundancy_and_safety_rules",
+      "row_count": 89,
+      "primary_key": [
+        "rule_id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "source_product_id"
+          ],
+          "references": "customer_catalog.product_id"
+        },
+        {
+          "columns": [
+            "target_product_id"
+          ],
+          "references": "customer_catalog.product_id"
+        }
+      ],
+      "columns": [
+        "rule_id",
+        "source_product_id",
+        "target_product_id",
+        "relationship_type",
+        "directionality",
+        "skin_context",
+        "routine_context",
+        "priority_rank",
+        "safety_action",
+        "reason",
+        "source_url",
+        "data_status"
+      ],
+      "authoritative_for": [
+        "product_relationship",
+        "relationship_direction",
+        "contextual_priority",
+        "compatibility_action",
+        "compatibility_reason"
+      ],
+      "review_boundary": {
+        "current_status": "draft_expert_review",
+        "production_review_required": true,
+        "unknown_pair_is_treated_as_compatible": false,
+        "blocked_or_clarify_pair_can_be_auto_bundled": false
+      },
+      "depends_on": [
+        "customer_catalog",
+        "product_profiles"
+      ],
+      "data_status_counts": {
+        "draft_expert_review": 89
+      },
+      "sha256": "577e89ccf3d7b119b05c379b26e2f45b01ba446869bc69614cb43c20b1ae86ad",
+      "failure_mode": "fatal_for_bundle_and_cross_sell_selection"
+    },
+    {
+      "resource_id": "bundle_components",
+      "path": "catalog/bundle_components.csv",
+      "format": "csv_rfc4180_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 60,
+      "visibility": "backend_internal_with_safe_customer_projection",
+      "runtime_role": "prepriced_bundle_composition",
+      "row_count": 15,
+      "primary_key": [
+        "bundle_variant_id",
+        "component_variant_id"
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "bundle_product_id"
+          ],
+          "references": "customer_catalog.product_id"
+        },
+        {
+          "columns": [
+            "bundle_variant_id"
+          ],
+          "references": "product_variants.variant_id"
+        },
+        {
+          "columns": [
+            "component_product_id"
+          ],
+          "references": "customer_catalog.product_id"
+        },
+        {
+          "columns": [
+            "component_variant_id"
+          ],
+          "references": "product_variants.variant_id"
+        }
+      ],
+      "columns": [
+        "bundle_product_id",
+        "bundle_variant_id",
+        "component_product_id",
+        "component_variant_id",
+        "quantity",
+        "component_role",
+        "display_order",
+        "required",
+        "active",
+        "data_status"
+      ],
+      "authoritative_for": [
+        "prepriced_bundle_components",
+        "component_quantities",
+        "component_routine_roles",
+        "bundle_display_order",
+        "required_component_status"
+      ],
+      "economic_boundary": {
+        "prepriced_bundle_cost_source": "merchant_economics_bundle_variant_row",
+        "component_costs_added_to_bundle_cost": false,
+        "components_still_require_inventory_and_compatibility_checks": true
+      },
+      "depends_on": [
+        "customer_catalog",
+        "product_variants",
+        "product_profiles",
+        "product_compatibility"
+      ],
+      "data_status_counts": {
+        "draft_demo": 15
+      },
+      "sha256": "4a5756982b36dbbc35634b90b5ca6a183f573fe8d201fea0f9dae09bb075790f",
+      "failure_mode": "fatal_for_prepriced_bundle_candidates"
+    },
+    {
+      "resource_id": "discount_policy",
+      "path": "catalog/discount_policy.json",
+      "format": "json_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 70,
+      "visibility": "merchant_private",
+      "runtime_role": "deterministic_discount_triggers_ladder_caps_and_guards",
+      "row_count": null,
+      "primary_key": [
+        "policy_id"
+      ],
+      "authoritative_for": [
+        "discount_trigger_eligibility",
+        "discount_ladder",
+        "discount_caps",
+        "discount_non_stacking",
+        "threshold_incentives",
+        "discount_selection_rules"
+      ],
+      "expected_identity": {
+        "policy_id": "CARTPILOT-DISCOUNT-POLICY",
+        "version": "1.0.0",
+        "decision_mode": "deterministic",
+        "random_offer_selection": false
+      },
+      "customer_api_exposed": false,
+      "selected_offer_terms_can_be_projected": true,
+      "depends_on": [
+        "product_variants",
+        "merchant_economics",
+        "bundle_components",
+        "product_compatibility"
+      ],
+      "sha256": "99d94e12df6fe6b954f1a80e6260ac58460f947d9ce5959de08aca2b3a7239e5",
+      "failure_mode": "fatal_for_discount_candidate_generation"
+    },
+    {
+      "resource_id": "profit_policy",
+      "path": "catalog/profit_policy.json",
+      "format": "json_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 80,
+      "visibility": "merchant_private",
+      "runtime_role": "deterministic_profit_calculation_ranking_and_selection",
+      "row_count": null,
+      "primary_key": [
+        "policy_id"
+      ],
+      "authoritative_for": [
+        "profit_formula",
+        "cost_allocation",
+        "profit_floors",
+        "ranking_weights",
+        "friction_and_risk_penalties",
+        "selection_thresholds",
+        "tie_breakers"
+      ],
+      "expected_identity": {
+        "policy_id": "CARTPILOT-PROFIT-POLICY",
+        "version": "1.0.0",
+        "decision_mode": "deterministic",
+        "random_offer_selection": false,
+        "machine_learning_offer_selection_enabled": false
+      },
+      "customer_api_exposed": false,
+      "merchant_audit_projection_allowed": true,
+      "depends_on": [
+        "product_variants",
+        "merchant_economics",
+        "product_profiles",
+        "product_compatibility",
+        "bundle_components",
+        "discount_policy"
+      ],
+      "sha256": "94fff044c509b8f56ad21732aa1e4d573e44c876370a8b78d65bf03b18a8bd43",
+      "failure_mode": "fatal_for_all_offer_selection"
+    },
+    {
+      "resource_id": "evaluation_scenarios",
+      "path": "catalog/evaluation_scenarios.csv",
+      "format": "csv_rfc4180_utf8",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 90,
+      "visibility": "evaluation_only",
+      "runtime_role": "deterministic_replay_and_acceptance_test_cases",
+      "row_count": 35,
+      "primary_key": [
+        "scenario_id"
+      ],
+      "columns": [
+        "scenario_id",
+        "scenario_class",
+        "shopper_request",
+        "skin_type",
+        "skin_concern",
+        "budget_inr",
+        "starting_cart_variant_ids",
+        "session_signal",
+        "simulated_condition",
+        "expected_action",
+        "expected_product_ids",
+        "expected_offer_id",
+        "expected_discount_trigger",
+        "expected_discount_pct_options",
+        "expected_safety_action",
+        "expected_reason_code",
+        "expected_payment_state",
+        "notes",
+        "data_status"
+      ],
+      "authoritative_for": [
+        "documented_evaluation_inputs",
+        "expected_policy_outcomes",
+        "failure_recovery_acceptance_cases"
+      ],
+      "production_runtime_loaded": false,
+      "contains_real_customer_data": false,
+      "depends_on": [
+        "customer_catalog",
+        "product_variants",
+        "merchant_economics",
+        "product_profiles",
+        "product_compatibility",
+        "bundle_components",
+        "discount_policy",
+        "profit_policy"
+      ],
+      "data_status_counts": {
+        "synthetic_evaluation": 35
+      },
+      "sha256": "4f8e8ec8d5ab06c81e72704229d310277b0946e5148c0ef0068cc576c52dc6cd",
+      "failure_mode": "fatal_in_test_and_submission_validation_only"
+    }
+  ],
+  "schema_resources": [
+    {
+      "resource_id": "customer_intent_schema",
+      "path": "schemas/customer_intent_schema.json",
+      "format": "json_schema_draft_2020_12",
+      "schema_id": "https://cartpilot.local/schemas/customer-intent/1.0.0",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 1,
+      "validates": "structured_untrusted_llm_intent_output",
+      "sha256": "dd06857787fac3f54b17641ea622ac30107b58e344fe3bd34a17457f1a2b0aa0"
+    },
+    {
+      "resource_id": "offer_decision_schema",
+      "path": "schemas/offer_decision_schema.json",
+      "format": "json_schema_draft_2020_12",
+      "schema_id": "https://cartpilot.local/schemas/offer-decision/1.0.0",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 2,
+      "validates": "deterministic_candidate_profit_discount_ranking_and_selection_output",
+      "depends_on": [
+        "customer_intent_schema"
+      ],
+      "sha256": "174d10c88b6a329b5563f2cd56ba394cd99062c0e0b30dbaabf8fafe18da28d1"
+    },
+    {
+      "resource_id": "payment_state_schema",
+      "path": "schemas/payment_state_schema.json",
+      "format": "json_schema_draft_2020_12",
+      "schema_id": "https://cartpilot.local/schemas/payment-state/1.0.0",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 3,
+      "validates": "customer_confirmation_order_checkout_payment_webhook_and_fulfilment_state",
+      "depends_on": [
+        "offer_decision_schema"
+      ],
+      "sha256": "db012edd0999439d8b94a1efdbf7a0ca210dcd65cda4203b5ba80d9960cb154a"
+    },
+    {
+      "resource_id": "audit_event_schema",
+      "path": "schemas/audit_event_schema.json",
+      "format": "json_schema_draft_2020_12",
+      "schema_id": "https://cartpilot.local/schemas/audit-event/1.0.0",
+      "version": "1.0.0",
+      "required": true,
+      "load_order": 4,
+      "validates": "append_only_decision_money_action_failure_and_recovery_events",
+      "depends_on": [
+        "customer_intent_schema",
+        "offer_decision_schema",
+        "payment_state_schema"
+      ],
+      "sha256": "d699af4df166ece5da6de6553b9f22663fe02362422b54a0ae50a7fea875499f"
+    }
+  ],
+  "governance_resources": [
+    {
+      "resource_id": "project_plan",
+      "path": "PROJECT_PLAN.md",
+      "format": "markdown_utf8",
+      "version": "current_planning_snapshot",
+      "required_for_runtime": false,
+      "required_for_implementation_review": true,
+      "sha256": "81982e1e81437d8f00dd01792a0128c0069bc5ea2573b0a480e708d15eb8abfc"
+    },
+    {
+      "resource_id": "implementation_spec",
+      "path": "IMPLEMENTATION_SPEC.md",
+      "format": "markdown_utf8",
+      "version": "1.0.0",
+      "required_for_runtime": false,
+      "required_for_implementation_review": true,
+      "sha256": "3c27619ff84eb2fc9028dc6b8092fe9aff9ccfe786bffc82106fd54f9b2b72f1"
+    }
+  ],
+  "normalization_contract": {
+    "csv_header_policy": "exact_columns_and_order_as_manifest",
+    "unknown_csv_column_policy": "reject_snapshot_until_manifest_version_is_updated",
+    "unknown_json_property_policy": "follow_the_resource_contract_and_reject_unrecognized_runtime_configuration",
+    "identifier_whitespace": "trim_then_reject_if_value_changed",
+    "identifier_case": "preserve_and_validate_exact_pattern",
+    "boolean_tokens": [
+      "true",
+      "false"
+    ],
+    "empty_cell": "null_only_when_the_field_contract_allows_null",
+    "multi_value_delimiter": "|",
+    "multi_value_normalization": "split_trim_reject_empty_tokens_preserve_declared_order_unless_field_is_a_set",
+    "inr_to_paise": "multiply_exact_decimal_INR_by_100_and_require_integer_paise",
+    "percentage_to_basis_points": "multiply_exact_percentage_by_100",
+    "url_policy": "https_only_when_present",
+    "duplicate_array_values": "reject_for_set_semantics"
+  },
+  "loading_contract": {
+    "steps": [
+      "load_and_validate_all_json_schemas",
+      "verify_every_required_file_exists",
+      "verify_SHA_256_for_every_pinned_resource",
+      "parse_files_without_type_coercion_side_effects",
+      "verify_exact_csv_headers",
+      "normalize_values_using_manifest_rules",
+      "validate_primary_keys",
+      "validate_foreign_keys",
+      "validate_cross_file_business_constraints",
+      "compile_immutable_catalog_snapshot",
+      "compute_runtime_manifest_and_snapshot_hashes",
+      "atomically_activate_snapshot",
+      "record_catalog_version_policy_versions_and_hashes_on_every_decision"
+    ],
+    "partial_snapshot_activation_allowed": false,
+    "mutable_active_snapshot_allowed": false,
+    "hot_reload_strategy": "validate_new_snapshot_completely_then_atomic_swap",
+    "failed_reload_strategy": "retain_last_valid_snapshot_and_emit_audit_failure_event",
+    "decision_version_pinning_required": true,
+    "historical_decision_reconstruction_required": true
+  },
+  "cross_file_constraints": [
+    {
+      "constraint_id": "UNIQUE_PRIMARY_KEYS",
+      "severity": "fatal",
+      "rule": "every_declared_primary_key_is_unique_and_non_empty"
+    },
+    {
+      "constraint_id": "PRODUCT_VARIANT_PARENT",
+      "severity": "fatal",
+      "rule": "every_product_variants.product_id_exists_in_customer_catalog.product_id"
+    },
+    {
+      "constraint_id": "ONE_DEFAULT_ACTIVE_VARIANT",
+      "severity": "fatal",
+      "rule": "every_active_product_has_exactly_one_active_variant_where_is_default_is_true"
+    },
+    {
+      "constraint_id": "STARTING_PRICE_RECONCILIATION",
+      "severity": "fatal",
+      "rule": "customer_catalog.starting_price_inr_equals_the_minimum_price_inr_of_active_variants_for_that_product"
+    },
+    {
+      "constraint_id": "SIZE_DISPLAY_RECONCILIATION",
+      "severity": "fatal",
+      "rule": "customer_catalog.sizes_available_matches_active_product_variant_sizes_after_documented_display_formatting"
+    },
+    {
+      "constraint_id": "INR_ONLY",
+      "severity": "fatal",
+      "rule": "every_product_variant_currency_is_INR_and_every_policy_currency_is_INR"
+    },
+    {
+      "constraint_id": "NON_NEGATIVE_PRICE_AND_STOCK",
+      "severity": "fatal",
+      "rule": "price_inr_is_positive_and_stock_quantity_is_a_non_negative_integer"
+    },
+    {
+      "constraint_id": "COMPLETE_VARIANT_ECONOMICS",
+      "severity": "fatal",
+      "rule": "every_variant_has_exactly_one_merchant_economics_row_and_no_economics_row_references_an_unknown_variant"
+    },
+    {
+      "constraint_id": "VALID_ECONOMIC_RANGES",
+      "severity": "fatal",
+      "rule": "costs_and_margin_floors_are_non_negative_expected_return_rate_pct_is_between_0_and_100_and_max_discount_pct_is_between_0_and_100"
+    },
+    {
+      "constraint_id": "COMPLETE_PRODUCT_PROFILES",
+      "severity": "fatal_for_automatic_recommendations",
+      "rule": "every_customer_catalog_product_has_exactly_one_product_profile"
+    },
+    {
+      "constraint_id": "COMPATIBILITY_REFERENCES_EXIST",
+      "severity": "fatal_for_bundle_and_cross_sell_selection",
+      "rule": "every_compatibility_source_and_target_product_id_exists"
+    },
+    {
+      "constraint_id": "COMPATIBILITY_DIRECTION_UNAMBIGUOUS",
+      "severity": "fatal_for_bundle_and_cross_sell_selection",
+      "rule": "no_same_context_pair_has_conflicting_equal_priority_rules_after_directionality_expansion"
+    },
+    {
+      "constraint_id": "BUNDLE_IDENTITIES",
+      "severity": "fatal_for_prepriced_bundle_candidates",
+      "rule": "every_bundle_product_is_type_Bundle_every_bundle_variant_belongs_to_that_product_and_every_component_variant_belongs_to_its_declared_component_product"
+    },
+    {
+      "constraint_id": "BUNDLE_REQUIRED_COMPONENTS",
+      "severity": "fatal_for_prepriced_bundle_candidates",
+      "rule": "every_active_bundle_has_at_least_two_active_required_components_with_unique_positive_display_order_and_positive_quantity"
+    },
+    {
+      "constraint_id": "BUNDLE_ECONOMICS_NOT_DOUBLE_COUNTED",
+      "severity": "fatal",
+      "rule": "prepriced_bundle_profit_uses_the_bundle_variant_economics_row_and_never_adds_component_cost_rows_again"
+    },
+    {
+      "constraint_id": "DISCOUNT_AND_PROFIT_POLICY_ALIGNMENT",
+      "severity": "fatal",
+      "rule": "currency_amount_unit_decision_mode_cart_floors_incremental_profit_floor_and_score_improvement_floor_match_between_discount_policy_and_profit_policy"
+    },
+    {
+      "constraint_id": "NO_RANDOM_SELECTION",
+      "severity": "fatal",
+      "rule": "discount_policy_and_profit_policy_both_disable_random_offer_selection_and_profit_policy_disables_MVP_machine_learning_selection"
+    },
+    {
+      "constraint_id": "EVALUATION_REFERENCES",
+      "severity": "fatal_in_test",
+      "rule": "all_non_empty_catalog_product_variant_offer_trigger_reason_and_payment_state_references_in_evaluation_scenarios_are_valid_for_the_versioned_contract"
+    },
+    {
+      "constraint_id": "PUBLIC_PRIVATE_BOUNDARY",
+      "severity": "fatal",
+      "rule": "merchant_economics_profit_weights_raw_stock_counts_internal_costs_and policy internals_are_never_returned_by_customer_endpoints_or_customer_logs"
+    }
+  ],
+  "validation_severity_policy": {
+    "fatal": "reject_entire_snapshot",
+    "fatal_for_automatic_recommendations": "load_public_catalog_but_disable_affected_automatic_recommendation_paths",
+    "fatal_for_bundle_and_cross_sell_selection": "disable_affected_bundle_and_cross_sell_candidates",
+    "fatal_for_prepriced_bundle_candidates": "disable_affected_prepriced_bundle_candidates",
+    "fatal_for_discount_candidate_generation": "disable_all_dynamic_discount_candidates",
+    "fatal_for_all_offer_selection": "disable_commercial_recommendations_and_return_safe_unavailable_response",
+    "fatal_in_test": "fail_evaluation_and_submission_readiness_checks",
+    "warning": "load_only_when_the_rule_explicitly_allows_it_and_emit_audit_warning"
+  },
+  "public_catalog_projection": {
+    "product_fields": [
+      "product_id",
+      "product_type",
+      "product_name",
+      "starting_price_inr",
+      "sizes_available",
+      "use_case",
+      "status"
+    ],
+    "variant_fields": [
+      "variant_id",
+      "product_id",
+      "size",
+      "price_inr",
+      "currency",
+      "is_default",
+      "in_stock"
+    ],
+    "reviewed_profile_fields": [
+      "routine_step",
+      "supported_skin_types",
+      "supported_concerns",
+      "usage_period",
+      "usage_frequency",
+      "customer_warning"
+    ],
+    "bundle_fields": [
+      "bundle_product_id",
+      "bundle_variant_id",
+      "component_product_id",
+      "component_variant_id",
+      "quantity",
+      "component_role",
+      "display_order"
+    ],
+    "always_blocked_fields": [
+      "unit_cost_inr",
+      "packaging_cost_inr",
+      "fulfilment_cost_inr",
+      "expected_return_rate_pct",
+      "return_processing_cost_inr",
+      "min_contribution_margin_inr",
+      "max_discount_pct",
+      "inventory_priority",
+      "stock_quantity",
+      "profit_formula",
+      "ranking_weights",
+      "candidate_scores",
+      "merchant_profit",
+      "Razorpay_key_secret",
+      "webhook_secret",
+      "payment_signature"
+    ],
+    "price_authority": "product_variants",
+    "availability_projection": "boolean_only",
+    "internal_cost_disclosure": false,
+    "medical_claims_allowed": false
+  },
+  "runtime_snapshot_contract": {
+    "required_snapshot_fields": [
+      "manifest_version",
+      "catalog_version",
+      "manifest_hash",
+      "loaded_at",
+      "resource_hashes",
+      "schema_versions",
+      "policy_versions",
+      "product_count",
+      "variant_count",
+      "validation_status"
+    ],
+    "validation_status_values": [
+      "valid",
+      "valid_with_disabled_candidate_types",
+      "invalid"
+    ],
+    "snapshot_is_immutable": true,
+    "every_offer_decision_records_snapshot_hash": true,
+    "every_audit_event_records_relevant_resource_versions": true,
+    "order_revalidation_uses_same_or_explicitly_upgraded_valid_snapshot": true,
+    "catalog_change_after_customer_confirmation_action": "revalidate_and_require_new_confirmation_if_items_price_discount_or_total_changed"
+  },
+  "startup_failure_contract": {
+    "customer_safe_message": "The catalog is temporarily unavailable. No order or payment has been started.",
+    "money_action_authorized": false,
+    "order_creation_authorized": false,
+    "checkout_authorized": false,
+    "existing_last_valid_snapshot_can_remain_active": true,
+    "emit_audit_event": true,
+    "audit_event_name": "system.data_integrity_failed",
+    "secrets_in_error": false,
+    "raw_customer_data_in_error": false
+  },
+  "review_requirements": [
+    {
+      "review_id": "SKINCARE_EXPERT_REVIEW",
+      "required_before": "production_or_public_health_suitability_claims",
+      "scope": [
+        "product_profiles.csv",
+        "product_compatibility.csv",
+        "ingredient_data",
+        "warnings",
+        "source_urls"
+      ],
+      "current_status": "pending"
+    },
+    {
+      "review_id": "MERCHANT_ECONOMICS_APPROVAL",
+      "required_before": "real_merchant_profit_reporting",
+      "scope": [
+        "merchant_economics.csv",
+        "discount_policy.json",
+        "profit_policy.json"
+      ],
+      "current_status": "synthetic_demo_only"
+    },
+    {
+      "review_id": "IMPLEMENTATION_AUTHORIZATION",
+      "required_before": "application_code_creation",
+      "scope": [
+        "architecture",
+        "API_contracts",
+        "deployment",
+        "secrets",
+        "database",
+        "acceptance_tests"
+      ],
+      "current_status": "not_yet_authorized"
+    }
+  ],
+  "change_control": {
+    "versioning": "semantic_versioning",
+    "patch_change": "copy_warning_source_or_non_behavioral_metadata_change",
+    "minor_change": "backward_compatible_product_variant_rule_or_scenario_addition",
+    "major_change": "identifier_removal_breaking_column_or_schema_change_or_material_formula_semantics_change",
+    "checksum_update_required_for_any_byte_change": true,
+    "manifest_version_update_required_for_resource_contract_change": true,
+    "catalog_version_update_required_for_customer_visible_or_decision_affecting_change": true,
+    "policy_version_update_required_for_formula_weight_threshold_gate_or_tie_breaker_change": true,
+    "historical_snapshots_retained": true,
+    "silent_runtime_mutation_allowed": false
+  },
+  "notes": [
+    "The manifest is a pinned planning snapshot. Editing a listed resource invalidates its checksum until this manifest and the relevant version are deliberately updated.",
+    "The public catalog may be shown to customers, but all commercial internals remain merchant-only.",
+    "Razorpay Test Mode confirms payment integration behavior; it does not supply or validate the synthetic merchant economics in this catalog.",
+    "No application implementation is authorized by this file. It is an input contract for the later implementation specification and approval gate."
+  ]
+}

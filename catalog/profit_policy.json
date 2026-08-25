@@ -1,0 +1,716 @@
+{
+  "policy_id": "CARTPILOT-PROFIT-POLICY",
+  "version": "1.0.0",
+  "status": "draft_demo",
+  "effective_date": "2026-08-24",
+  "currency": "INR",
+  "amount_unit": "minor_units_paise",
+  "objective": "maximize_estimated_contribution_profit_per_session",
+  "selection_objective": "maximize_deterministic_offer_score_subject_to_all_hard_gates",
+  "decision_mode": "deterministic",
+  "random_offer_selection": false,
+  "machine_learning_offer_selection_enabled": false,
+  "score_is_purchase_probability": false,
+  "description": "Merchant-controlled formulas, hard gates, weights, penalties, thresholds, and tie-breakers for calculating candidate economics and selecting a skincare offer. The LLM may extract intent and draft explanations, but it cannot provide prices, costs, discounts, profit values, scores, or the selected action.",
+  "authoritative_sources": {
+    "variant_price": "product_variants.csv.price_inr converted to integer paise during ingestion",
+    "variant_inventory_and_status": "product_variants.csv.stock_quantity and active",
+    "variant_costs_and_floors": "merchant_economics.csv",
+    "prepriced_bundle_costs_and_floors": "merchant_economics.csv row for the bundle variant",
+    "prepriced_bundle_contents": "bundle_components.csv",
+    "compatibility_rules": "product_compatibility.csv",
+    "product_suitability": "product_profiles.csv",
+    "discount_rules": "discount_policy.json",
+    "customer_constraints": "validated customer_intent_schema.json output",
+    "candidate_contract": "offer_decision_schema.json"
+  },
+  "data_classification": {
+    "unit_economics": "synthetic_demo_merchant_configuration",
+    "payment_cost_rate": "synthetic_demo_estimate_not_razorpay_test_api_data",
+    "return_rates": "synthetic_demo_estimates",
+    "ranking_weights": "merchant_configured_heuristics_not_learned_parameters",
+    "profit_output_label": "estimated_contribution_profit",
+    "test_mode_payment_is_real_profit_evidence": false
+  },
+  "numeric_conventions": {
+    "money_storage": "integer_paise_only",
+    "percentage_storage": "integer_basis_points_where_10000_equals_100_percent",
+    "source_inr_conversion": "multiply_by_100_and_require_an_exact_integer_result",
+    "money_rounding": "nearest_paise_half_up",
+    "percentage_rounding": "nearest_integer_basis_point_half_up",
+    "score_rounding": "ceiling_after_weighted_profit_before_subtracting_integer_penalties",
+    "floating_point_money_arithmetic_allowed": false,
+    "negative_zero_normalization": "normalize_to_zero",
+    "calculation_overflow_policy": "reject_candidate_and_record_DATA_INTEGRITY_ERROR",
+    "calculation_order_is_normative": true
+  },
+  "mvp_assumptions": {
+    "payment_cost_rate_bps": 200,
+    "payment_cost_fixed_paise": 0,
+    "payment_cost_basis": "final_customer_total_paise",
+    "tax_handling": "catalog_prices_are_treated_as_final_customer_item_prices_and_tax_is_not_separately_modelled",
+    "shipping_revenue_paise": 0,
+    "customer_shipping_charge_modelled": false,
+    "merchant_funded_fulfilment_source": "merchant_economics.csv.fulfilment_cost_inr",
+    "packaging_source": "merchant_economics.csv.packaging_cost_inr",
+    "return_cost_model": "expected_return_rate_times_return_processing_cost_only",
+    "lost_revenue_from_return_modelled_separately": false,
+    "payment_fee_reconciliation_available": false,
+    "prepriced_bundle_uses_bundle_economics_row": true,
+    "generated_bundle_uses_sum_of_component_economics_rows": true
+  },
+  "candidate_types": [
+    "requested_product_only",
+    "compatible_cross_sell",
+    "generated_routine_bundle",
+    "prepriced_catalog_bundle",
+    "lower_price_substitute",
+    "smaller_compatible_routine",
+    "threshold_incentive",
+    "discounted_product",
+    "discounted_generated_bundle",
+    "no_additional_offer"
+  ],
+  "candidate_construction_rules": {
+    "baseline_definition": "requested product or safest valid catalog match, with no added item and no incentive",
+    "baseline_required": true,
+    "no_additional_offer_required": true,
+    "maximum_cross_sell_items_per_recommendation_cycle": 1,
+    "cross_sell_must_fill_a_relevant_routine_step": true,
+    "generated_bundle_requires_all_components_to_be_individually_active_and_in_stock": true,
+    "prepriced_bundle_requires_bundle_variant_and_all_required_components_to_be_active_and_in_stock": true,
+    "exfoliant_or_scrub_is_never_a_default_addition": true,
+    "discount_candidates_require_discount_policy_trigger": true,
+    "candidate_deduplication_key": "sorted_variant_id_quantity_pairs_plus_discount_rule_id",
+    "candidate_generation_order": [
+      "requested_product_only",
+      "no_additional_offer",
+      "compatible_cross_sell",
+      "generated_routine_bundle",
+      "prepriced_catalog_bundle",
+      "lower_price_substitute",
+      "smaller_compatible_routine",
+      "threshold_incentive",
+      "discounted_product",
+      "discounted_generated_bundle"
+    ]
+  },
+  "bundle_economics_rules": {
+    "prepriced_catalog_bundle": {
+      "selling_price_source": "bundle_variant_price",
+      "product_cost_source": "bundle_variant_unit_cost",
+      "packaging_cost_source": "bundle_variant_packaging_cost",
+      "fulfilment_cost_source": "bundle_variant_fulfilment_cost",
+      "return_rate_source": "bundle_variant_expected_return_rate",
+      "return_processing_cost_source": "bundle_variant_return_processing_cost",
+      "component_economics_are_added_again": false,
+      "components_are_still_checked_for": [
+        "active_status",
+        "inventory",
+        "compatibility",
+        "customer_exclusions",
+        "skincare_safety"
+      ]
+    },
+    "generated_routine_bundle": {
+      "selling_price_source": "sum_of_component_variant_prices_before_any_valid_discount",
+      "product_cost_source": "sum_of_component_variant_unit_costs",
+      "packaging_cost_source": "sum_of_component_variant_packaging_costs",
+      "fulfilment_cost_source": "sum_of_component_variant_fulfilment_costs",
+      "expected_return_cost_source": "sum_of_component_expected_return_costs",
+      "bundle_level_economics_row_used": false
+    }
+  },
+  "discount_and_cost_allocation": {
+    "discount_allocation": "proportional_by_eligible_line_subtotal",
+    "discount_allocation_remainder": "assign_to_highest_priced_eligible_line_then_lexicographically_smallest_variant_id",
+    "payment_cost_allocation": "proportional_by_line_final_revenue",
+    "payment_cost_allocation_remainder": "assign_to_highest_line_final_revenue_then_lexicographically_smallest_variant_id",
+    "cart_incentive_cost_allocation": "allocate_to_benefited_lines_proportionally_by_line_final_revenue",
+    "line_allocation_is_required_for_variant_margin_checks": true,
+    "cash_price_reduction_counted_as": "discount_cost_paise",
+    "non_price_merchant_funded_benefit_counted_as": "incentive_cost_paise",
+    "same_value_counted_as_both_discount_and_incentive": false
+  },
+  "calculation_order": [
+    "validate_candidate_lines_and_authoritative_sources",
+    "calculate_gross_item_revenue_paise",
+    "validate_and_allocate_discount_paise",
+    "calculate_net_revenue_paise",
+    "calculate_product_cost_paise",
+    "calculate_packaging_cost_paise",
+    "calculate_fulfilment_cost_paise",
+    "calculate_expected_return_cost_paise",
+    "calculate_estimated_payment_cost_paise",
+    "calculate_incentive_cost_paise",
+    "calculate_contribution_profit_paise",
+    "calculate_contribution_margin_bps",
+    "allocate_cart_costs_to_lines",
+    "check_variant_and_cart_profit_floors",
+    "calculate_ranking_dimensions",
+    "calculate_final_offer_score_units",
+    "compare_with_baseline_and_apply_selection_thresholds"
+  ],
+  "formulas": {
+    "line_subtotal_paise": "unit_price_paise * quantity",
+    "gross_item_revenue_paise": "sum(line_subtotal_paise)",
+    "discount_cost_paise": "sum(line_discount_paise)",
+    "net_revenue_paise": "gross_item_revenue_paise - discount_cost_paise",
+    "product_cost_paise": "sum(unit_cost_paise * quantity)",
+    "packaging_cost_paise": "sum(packaging_cost_paise_per_unit * quantity)",
+    "fulfilment_cost_paise": "sum(fulfilment_cost_paise_per_unit * quantity)",
+    "line_expected_return_cost_paise": "round_half_up(quantity * expected_return_rate_bps * return_processing_cost_paise_per_unit / 10000)",
+    "expected_return_cost_paise": "sum(line_expected_return_cost_paise)",
+    "estimated_payment_cost_paise": "round_half_up(net_revenue_paise * payment_cost_rate_bps / 10000) + payment_cost_fixed_paise",
+    "incentive_cost_paise": "sum(non_price_merchant_funded_incentive_cost_paise)",
+    "contribution_profit_paise": "net_revenue_paise - product_cost_paise - packaging_cost_paise - fulfilment_cost_paise - expected_return_cost_paise - estimated_payment_cost_paise - incentive_cost_paise",
+    "contribution_margin_bps": "round_half_up(contribution_profit_paise * 10000 / net_revenue_paise)",
+    "line_contribution_profit_paise": "line_final_revenue_paise - line_product_cost_paise - line_packaging_cost_paise - line_fulfilment_cost_paise - line_expected_return_cost_paise - allocated_payment_cost_paise - allocated_incentive_cost_paise",
+    "incremental_net_revenue_paise": "candidate_net_revenue_paise - baseline_net_revenue_paise",
+    "incremental_contribution_profit_paise": "candidate_contribution_profit_paise - baseline_contribution_profit_paise",
+    "weighted_profit_before_penalties_units": "ceil(contribution_profit_paise * score_scale_factor * relevance_weight_bps * compatibility_weight_bps * budget_fit_weight_bps * intent_weight_bps / 10000^4)",
+    "final_offer_score_units": "weighted_profit_before_penalties_units - friction_penalty_units - risk_penalty_units",
+    "offer_score_delta_units": "candidate_final_offer_score_units - baseline_final_offer_score_units",
+    "offer_score_improvement_bps": "round_half_up(offer_score_delta_units * 10000 / max(abs(baseline_final_offer_score_units), 1))"
+  },
+  "formula_guards": {
+    "net_revenue_must_be_positive": true,
+    "quantity_must_be_positive_integer": true,
+    "every_variant_must_have_exactly_one_active_price_row": true,
+    "every_variant_must_have_exactly_one_economics_row": true,
+    "all_candidate_line_amounts_must_reconcile": true,
+    "sum_of_allocated_discount_must_equal_cart_discount": true,
+    "sum_of_allocated_payment_cost_must_equal_cart_payment_cost": true,
+    "sum_of_line_final_revenue_must_equal_net_revenue": true,
+    "unknown_cost_is_not_treated_as_zero": true,
+    "missing_or_invalid_economics_action": "reject_candidate",
+    "non_finite_or_overflow_result_action": "reject_candidate",
+    "zero_net_revenue_action": "reject_candidate"
+  },
+  "ranking": {
+    "policy_id": "CARTPILOT-DETERMINISTIC-OFFER-RANKING",
+    "version": "1.0.0",
+    "score_scale_factor": 10,
+    "score_unit": "deterministic_ranking_unit",
+    "score_is_probability": false,
+    "score_is_currency": false,
+    "all_weights_are_integer_basis_points": true,
+    "weights_are_multipliers": true,
+    "hard_gates_run_before_scoring": true,
+    "negative_profit_candidates_are_scored": false,
+    "dimensions": {
+      "relevance_weight_bps": {
+        "description": "How directly the candidate answers the validated shopping goal.",
+        "mapping": [
+          {
+            "condition": "exact_requested_product_or_explicitly_requested_routine",
+            "weight_bps": 10000
+          },
+          {
+            "condition": "directly_compatible_routine_completion_or_single_cross_sell",
+            "weight_bps": 9500
+          },
+          {
+            "condition": "compatible_substitute_or_smaller_routine_preserving_primary_goal",
+            "weight_bps": 9000
+          },
+          {
+            "condition": "threshold_or_campaign_candidate_with_secondary_relevance",
+            "weight_bps": 8500
+          },
+          {
+            "condition": "not_relevant_to_validated_goal",
+            "weight_bps": 0,
+            "hard_reject": true
+          }
+        ]
+      },
+      "compatibility_weight_bps": {
+        "description": "Catalog-defined ability to use the products as the proposed routine.",
+        "mapping": [
+          {
+            "condition": "all_compatibility_rules_allow_same_proposed_routine",
+            "weight_bps": 10000
+          },
+          {
+            "condition": "allowed_only_with_clear_separate_use_instructions",
+            "weight_bps": 9000
+          },
+          {
+            "condition": "clarification_required_manual_review_or_block_auto_bundle",
+            "weight_bps": 0,
+            "hard_reject_for_automatic_selection": true
+          }
+        ]
+      },
+      "budget_fit_weight_bps": {
+        "description": "Whether the server-calculated total respects the shopper's explicit budget.",
+        "mapping": [
+          {
+            "condition": "explicit_budget_present_and_final_total_is_within_budget",
+            "weight_bps": 10000
+          },
+          {
+            "condition": "no_explicit_budget_was_stated",
+            "weight_bps": 9500
+          },
+          {
+            "condition": "customer_explicitly_accepted_a_revalidated_total_above_previous_budget",
+            "weight_bps": 10000
+          },
+          {
+            "condition": "final_total_exceeds_current_explicit_budget_without_new_confirmation",
+            "weight_bps": 0,
+            "hard_reject": true
+          }
+        ]
+      },
+      "intent_weight_bps": {
+        "description": "Strength of evidence that the shopper wants the candidate action; it is not willingness-to-pay or purchase probability.",
+        "mapping": [
+          {
+            "condition": "customer_explicitly_requested_this_product_bundle_or_action",
+            "weight_bps": 10000
+          },
+          {
+            "condition": "candidate_completes_the_explicitly_requested_routine_scope",
+            "weight_bps": 9500
+          },
+          {
+            "condition": "one_optional_catalog_supported_cross_sell",
+            "weight_bps": 9000
+          },
+          {
+            "condition": "compatible_substitute_needed_for_price_or_inventory",
+            "weight_bps": 8500
+          },
+          {
+            "condition": "campaign_or_threshold_only_without_matching_customer_goal",
+            "weight_bps": 7500
+          },
+          {
+            "condition": "contradicts_customer_request_or_exclusion",
+            "weight_bps": 0,
+            "hard_reject": true
+          }
+        ]
+      }
+    },
+    "friction_penalties": [
+      {
+        "penalty_id": "ADDED_ITEM",
+        "units": 500,
+        "application": "per_item_added_beyond_the_customer_required_items",
+        "maximum_applications": 3
+      },
+      {
+        "penalty_id": "DYNAMIC_DISCOUNT_COMPLEXITY",
+        "units": 250,
+        "application": "once_when_a_dynamic_discount_is_used",
+        "maximum_applications": 1
+      },
+      {
+        "penalty_id": "SEPARATE_USE_INSTRUCTIONS",
+        "units": 250,
+        "application": "once_when_products_are_allowed_only_with_separate_use_instructions",
+        "maximum_applications": 1
+      },
+      {
+        "penalty_id": "PREPRICED_BUNDLE",
+        "units": 0,
+        "application": "no_extra_friction_when_the_bundle_matches_the_requested_routine"
+      }
+    ],
+    "risk_penalties": [
+      {
+        "penalty_id": "CATALOG_WARNING_REQUIRES_EXTRA_EXPLANATION",
+        "units": 1000,
+        "application": "once_for_a_candidate_that_is_allowed_but_has_a_non_blocking_merchant_warning"
+      },
+      {
+        "penalty_id": "CUSTOMER_ACCEPTED_SOFT_PREFERENCE_CONFLICT",
+        "units": 2000,
+        "application": "once_when_a_customer_explicitly_accepts_a_non_safety_preference_tradeoff"
+      }
+    ],
+    "risk_penalty_boundaries": {
+      "unknown_critical_suitability_data": "hard_reject_or_clarify_not_soft_penalty",
+      "catalog_incompatibility": "hard_reject_not_soft_penalty",
+      "customer_ingredient_exclusion": "hard_reject_not_soft_penalty",
+      "expected_returns": "included_in_expected_return_cost_not_risk_penalty",
+      "discount_cost": "included_in_contribution_profit_not_risk_penalty",
+      "same_risk_counted_twice": false
+    }
+  },
+  "hard_gates": {
+    "evaluation_order": [
+      "INPUT_DATA_INTEGRITY",
+      "ACTIVE_CATALOG_VARIANTS",
+      "INVENTORY_AVAILABLE",
+      "BUNDLE_COMPONENTS_AVAILABLE",
+      "CUSTOMER_EXCLUSIONS",
+      "CATALOG_COMPATIBILITY",
+      "SKINCARE_SAFETY",
+      "RELEVANCE",
+      "AUTHORITATIVE_PRICE",
+      "BUDGET",
+      "DISCOUNT_POLICY",
+      "VARIANT_CONTRIBUTION_FLOOR",
+      "CART_CONTRIBUTION_FLOOR",
+      "INCREMENTAL_PROFIT",
+      "OFFER_SCORE_IMPROVEMENT",
+      "CROSS_SELL_LIMIT",
+      "CUSTOMER_CONFIRMATION_BEFORE_ORDER"
+    ],
+    "rules": [
+      {
+        "gate_id": "INPUT_DATA_INTEGRITY",
+        "pass_condition": "all_referenced_catalog_configuration_and_schema_versions_exist_and_all_required_numeric_inputs_are_valid",
+        "failure_action": "reject_candidate"
+      },
+      {
+        "gate_id": "ACTIVE_CATALOG_VARIANTS",
+        "pass_condition": "every_candidate_variant_exists_and_active_is_true",
+        "failure_action": "reject_candidate"
+      },
+      {
+        "gate_id": "INVENTORY_AVAILABLE",
+        "pass_condition": "every_candidate_variant_has_stock_quantity_greater_than_or_equal_to_requested_quantity",
+        "failure_action": "reject_candidate_or_generate_catalog_substitute"
+      },
+      {
+        "gate_id": "BUNDLE_COMPONENTS_AVAILABLE",
+        "pass_condition": "every_required_prepriced_bundle_component_is_active_and_in_stock",
+        "failure_action": "reject_bundle_candidate"
+      },
+      {
+        "gate_id": "CUSTOMER_EXCLUSIONS",
+        "pass_condition": "candidate_contains_no_explicitly_excluded_product_type_ingredient_or_catalog_warning_match",
+        "failure_action": "reject_candidate"
+      },
+      {
+        "gate_id": "CATALOG_COMPATIBILITY",
+        "pass_condition": "product_compatibility_rules_return_allow_or_an_explicitly_supported_separate_use_result",
+        "failure_action": "reject_automatic_bundle_or_request_clarification"
+      },
+      {
+        "gate_id": "SKINCARE_SAFETY",
+        "pass_condition": "product_profiles_and_customer_disclosures_do_not_require_avoidance_professional_guidance_or_unanswered_clarification",
+        "failure_action": "reject_candidate_or_request_clarification"
+      },
+      {
+        "gate_id": "RELEVANCE",
+        "pass_condition": "relevance_weight_bps_is_greater_than_zero",
+        "failure_action": "reject_candidate"
+      },
+      {
+        "gate_id": "AUTHORITATIVE_PRICE",
+        "pass_condition": "every_price_and_total_recomputes_exactly_from_server_catalog_data",
+        "failure_action": "reject_candidate_and_ignore_untrusted_price"
+      },
+      {
+        "gate_id": "BUDGET",
+        "pass_condition": "candidate_is_within_current_explicit_budget_or_customer_has_explicitly_confirmed_the_revalidated_new_total",
+        "failure_action": "reject_candidate_or_offer_smaller_valid_option"
+      },
+      {
+        "gate_id": "DISCOUNT_POLICY",
+        "pass_condition": "no_discount_or_every_discount_passes_discount_policy_trigger_ladder_cap_non_stacking_and_eligibility_rules",
+        "failure_action": "reject_discount_candidate"
+      },
+      {
+        "gate_id": "VARIANT_CONTRIBUTION_FLOOR",
+        "pass_condition": "every_line_contribution_profit_paise_is_greater_than_or_equal_to_its_variant_min_contribution_margin_paise",
+        "failure_action": "reject_candidate"
+      },
+      {
+        "gate_id": "CART_CONTRIBUTION_FLOOR",
+        "pass_condition": "cart_contribution_profit_paise_and_cart_contribution_margin_bps_both_meet_global_floors",
+        "failure_action": "reject_candidate"
+      },
+      {
+        "gate_id": "INCREMENTAL_PROFIT",
+        "pass_condition": "an_additional_offer_meets_the_minimum_incremental_contribution_profit_paise_against_baseline",
+        "failure_action": "select_baseline_or_no_additional_offer"
+      },
+      {
+        "gate_id": "OFFER_SCORE_IMPROVEMENT",
+        "pass_condition": "an_additional_offer_meets_the_minimum_offer_score_improvement_bps_against_baseline",
+        "failure_action": "select_baseline_or_no_additional_offer"
+      },
+      {
+        "gate_id": "CROSS_SELL_LIMIT",
+        "pass_condition": "candidate_adds_at_most_one_optional_cross_sell_in_the_current_recommendation_cycle",
+        "failure_action": "reject_candidate"
+      },
+      {
+        "gate_id": "CUSTOMER_CONFIRMATION_BEFORE_ORDER",
+        "pass_condition": "customer_has_seen_and_confirmed_the_exact_revalidated_cart_and_total",
+        "failure_action": "block_order_creation"
+      }
+    ]
+  },
+  "profit_floors": {
+    "variant_floor_source": "merchant_economics.csv.min_contribution_margin_inr converted to paise",
+    "variant_floor_measure": "allocated_line_contribution_profit_paise",
+    "cart_minimum_contribution_profit_paise": 10000,
+    "cart_minimum_contribution_margin_bps": 2500,
+    "minimum_incremental_contribution_profit_paise_for_additional_offer": 2000,
+    "minimum_offer_score_improvement_bps_for_additional_offer": 250,
+    "reject_negative_incremental_profit": true,
+    "apply_both_absolute_and_percentage_cart_floors": true,
+    "floor_override_allowed": false
+  },
+  "selection_algorithm": {
+    "steps": [
+      "construct_baseline_and_no_additional_offer_candidates",
+      "construct_all_applicable_candidate_types_in_fixed_order",
+      "deduplicate_candidates",
+      "calculate_authoritative_economics_for_every_candidate",
+      "apply_all_hard_gates_in_fixed_order",
+      "record_every_rejected_candidate_and_reason_code",
+      "calculate_weights_and_penalties_for_every_eligible_candidate",
+      "calculate_final_offer_score_units",
+      "sort_eligible_candidates_by_score_and_tie_breakers",
+      "compare_best_additional_offer_with_baseline_thresholds",
+      "select_best_valid_candidate_or_baseline",
+      "produce_customer_and_merchant_explanations",
+      "require_customer_confirmation_before_order_creation"
+    ],
+    "eligible_candidate_sort": [
+      "higher_final_offer_score_units",
+      "higher_contribution_profit_paise",
+      "lower_discount_paise",
+      "fewer_added_products",
+      "lower_customer_total_paise",
+      "lexicographically_smaller_candidate_id"
+    ],
+    "all_ties_resolved_without_randomness": true,
+    "additional_offer_requires_both_profit_and_score_thresholds": true,
+    "baseline_selected_when_no_additional_offer_clears_thresholds": true,
+    "no_valid_offer_result_when_baseline_fails_safety_or_catalog_gates": true,
+    "clarification_result_when_required_suitability_information_is_missing": true,
+    "customer_confirmation_is_not_offer_selection": true,
+    "order_creation_is_not_offer_selection": true
+  },
+  "special_selection_cases": {
+    "out_of_stock_requested_product": "a_catalog_defined_compatible_substitute_may_become_the_baseline",
+    "unsafe_or_incompatible_requested_product": "do_not_optimize_profit_request_clarification_or_return_no_valid_offer",
+    "explicit_lower_price_request": "compare_lower_price_substitute_and_smaller_routine_before_discount",
+    "explicit_price_objection": "generate_only_discount_policy_approved_candidates_and_choose_the_smallest_effective_valid_discount",
+    "prepriced_bundle": "compare_its_bundle_variant_economics_without_adding_component_costs_twice",
+    "no_explicit_budget": "use_neutral_budget_fit_weight_and_never_infer_wealth",
+    "all_additional_offers_fail_thresholds": "select_baseline_or_no_additional_offer",
+    "exact_tie_after_all_numeric_rules": "choose_lexicographically_smaller_candidate_id"
+  },
+  "allowed_decision_inputs": [
+    "validated_customer_request",
+    "explicit_customer_budget",
+    "explicit_customer_price_objection",
+    "explicit_customer_item_removal_reason",
+    "explicit_customer_acceptance_or_rejection_in_current_session",
+    "current_cart_variant_ids_and_quantities",
+    "catalog_product_and_variant_data",
+    "catalog_relevance_and_routine_roles",
+    "catalog_compatibility_and_warnings",
+    "merchant_unit_economics",
+    "merchant_discount_policy",
+    "current_inventory",
+    "active_merchant_campaign"
+  ],
+  "disallowed_decision_inputs": [
+    "race_or_ethnicity",
+    "religion_or_caste",
+    "gender_or_sexual_orientation",
+    "disability_or_health_diagnosis",
+    "inferred_income_or_wealth",
+    "device_value_as_wealth_proxy",
+    "unrelated_location_or_demographics",
+    "protected_attributes",
+    "secret_customer_specific_base_price",
+    "artificial_scarcity",
+    "fabricated_urgency",
+    "llm_invented_price",
+    "llm_invented_cost",
+    "llm_selected_discount",
+    "random_number"
+  ],
+  "model_boundary": {
+    "mvp_acceptance_model_enabled": false,
+    "llm_can_extract_intent": true,
+    "llm_can_propose_untrusted_catalog_matches": true,
+    "llm_can_draft_explanations_after_selection": true,
+    "llm_can_set_economic_inputs": false,
+    "llm_can_calculate_authoritative_profit": false,
+    "llm_can_choose_candidate": false,
+    "llm_can_choose_discount": false,
+    "llm_can_bypass_gate": false,
+    "future_acceptance_model_role": "optional_advisory_score_only_after_calibration_and_versioned_evaluation",
+    "future_model_can_bypass_hard_gates": false,
+    "future_model_can_change_price_or_discount": false
+  },
+  "output_contract": {
+    "schema": "schemas/offer_decision_schema.json",
+    "required_profit_fields": [
+      "gross_item_revenue_paise",
+      "discount_cost_paise",
+      "net_revenue_paise",
+      "product_cost_paise",
+      "packaging_cost_paise",
+      "fulfilment_cost_paise",
+      "expected_return_cost_paise",
+      "estimated_payment_cost_paise",
+      "incentive_cost_paise",
+      "contribution_profit_paise",
+      "contribution_margin_bps"
+    ],
+    "required_ranking_fields": [
+      "relevance_weight_bps",
+      "compatibility_weight_bps",
+      "budget_fit_weight_bps",
+      "intent_weight_bps",
+      "friction_penalty_units",
+      "risk_penalty_units",
+      "final_offer_score_units",
+      "score_is_probability"
+    ],
+    "required_baseline_comparison_fields": [
+      "baseline_candidate_id",
+      "incremental_net_revenue_paise",
+      "incremental_contribution_profit_paise",
+      "offer_score_delta_units"
+    ],
+    "selected_offer_requires_complete_candidate_set": true,
+    "selected_offer_requires_reason_codes": true,
+    "selected_offer_requires_configuration_versions": true,
+    "selected_offer_authorizes_payment": false
+  },
+  "audit_requirements": {
+    "event_schema": "schemas/audit_event_schema.json",
+    "record_for_every_candidate": [
+      "candidate_id_and_type",
+      "variant_ids_quantities_and_authoritative_prices",
+      "catalog_and_configuration_versions",
+      "profit_formula_version",
+      "complete_profit_breakdown",
+      "dimension_weights_and_mapping_conditions",
+      "friction_and_risk_penalties",
+      "hard_gate_results",
+      "rejection_reason_codes",
+      "final_offer_score_units",
+      "baseline_comparison"
+    ],
+    "record_for_selection": [
+      "baseline_candidate_id",
+      "all_evaluated_candidate_ids",
+      "eligible_and_rejected_counts",
+      "selected_candidate_id",
+      "tie_breaker_used",
+      "selection_reason_code",
+      "customer_explanation",
+      "merchant_explanation",
+      "customer_confirmation_status"
+    ],
+    "record_raw_payment_credentials": false,
+    "record_secrets": false,
+    "append_only": true
+  },
+  "worked_example": {
+    "scenario": "Hydrating toner baseline compared with one compatible gentle-cleanser cross-sell",
+    "source_offer_decision_example": "schemas/offer_decision_schema.json examples[0]",
+    "baseline": {
+      "candidate_id": "OFR-DEMO-BASE",
+      "variant_ids": [
+        "TON-001-100ML"
+      ],
+      "gross_item_revenue_paise": 34900,
+      "discount_cost_paise": 0,
+      "net_revenue_paise": 34900,
+      "product_cost_paise": 12000,
+      "packaging_cost_paise": 1800,
+      "fulfilment_cost_paise": 3500,
+      "expected_return_cost_paise": 240,
+      "estimated_payment_cost_paise": 698,
+      "incentive_cost_paise": 0,
+      "contribution_profit_paise": 16662,
+      "contribution_margin_bps": 4774,
+      "relevance_weight_bps": 10000,
+      "compatibility_weight_bps": 10000,
+      "budget_fit_weight_bps": 10000,
+      "intent_weight_bps": 9000,
+      "friction_penalty_units": 0,
+      "risk_penalty_units": 0,
+      "weighted_profit_before_penalties_units": 149958,
+      "final_offer_score_units": 149958
+    },
+    "cross_sell": {
+      "candidate_id": "OFR-DEMO-CROSSSELL",
+      "variant_ids": [
+        "TON-001-100ML",
+        "CLN-001-100ML"
+      ],
+      "gross_item_revenue_paise": 64800,
+      "discount_cost_paise": 0,
+      "net_revenue_paise": 64800,
+      "product_cost_paise": 22500,
+      "packaging_cost_paise": 3600,
+      "fulfilment_cost_paise": 7000,
+      "expected_return_cost_paise": 480,
+      "estimated_payment_cost_paise": 1296,
+      "incentive_cost_paise": 0,
+      "contribution_profit_paise": 29924,
+      "contribution_margin_bps": 4618,
+      "relevance_weight_bps": 9500,
+      "compatibility_weight_bps": 10000,
+      "budget_fit_weight_bps": 10000,
+      "intent_weight_bps": 9500,
+      "friction_penalty_units": 500,
+      "risk_penalty_units": 0,
+      "weighted_profit_before_penalties_units": 270065,
+      "final_offer_score_units": 269565,
+      "incremental_net_revenue_paise": 29900,
+      "incremental_contribution_profit_paise": 13262,
+      "offer_score_delta_units": 119607,
+      "selection_result": "selected"
+    },
+    "checks": {
+      "baseline_profit_formula_reconciles": true,
+      "cross_sell_profit_formula_reconciles": true,
+      "payment_cost_is_200_bps_of_net_revenue": true,
+      "expected_return_cost_uses_variant_rate_and_processing_cost": true,
+      "cross_sell_passes_minimum_incremental_profit_paise": true,
+      "cross_sell_passes_minimum_score_improvement_bps": true,
+      "cross_sell_count_is_within_limit": true,
+      "randomness_used": false
+    }
+  },
+  "reason_codes": {
+    "DATA_INTEGRITY_ERROR": "A required versioned catalog, cost, or numeric input was missing or invalid",
+    "VARIANT_INACTIVE": "At least one candidate variant was inactive",
+    "OUT_OF_STOCK": "At least one candidate variant did not have enough stock",
+    "BUNDLE_COMPONENT_UNAVAILABLE": "A required component of a prepriced bundle was inactive or unavailable",
+    "CUSTOMER_EXCLUSION_MATCH": "The candidate conflicted with an explicit customer exclusion",
+    "COMPATIBILITY_BLOCKED": "The catalog compatibility policy blocked automatic selection",
+    "SKINCARE_CLARIFICATION_REQUIRED": "The candidate requires additional suitability information",
+    "IRRELEVANT_TO_CUSTOMER_GOAL": "The candidate did not address the validated shopping goal",
+    "AUTHORITATIVE_PRICE_MISMATCH": "A candidate price or total did not match the server catalog calculation",
+    "BUDGET_EXCEEDED": "The candidate exceeded the current explicit budget without confirmation of a revised total",
+    "DISCOUNT_POLICY_REJECTED": "The candidate discount failed the versioned discount policy",
+    "BELOW_VARIANT_MARGIN_FLOOR": "At least one allocated line contribution fell below its merchant floor",
+    "BELOW_CART_PROFIT_FLOOR": "The candidate contribution profit fell below the absolute cart floor",
+    "BELOW_CART_MARGIN_FLOOR": "The candidate contribution margin fell below the percentage cart floor",
+    "INSUFFICIENT_INCREMENTAL_PROFIT": "The additional offer did not improve contribution profit by the required amount",
+    "INSUFFICIENT_SCORE_IMPROVEMENT": "The additional offer did not improve deterministic offer score enough",
+    "CROSS_SELL_LIMIT_EXCEEDED": "The candidate added more optional cross-sells than allowed",
+    "CUSTOMER_CONFIRMATION_REQUIRED": "The exact revalidated cart and total must be confirmed before order creation",
+    "ELIGIBLE_CANDIDATE": "The candidate passed every applicable hard gate",
+    "HIGHEST_VALID_PROFIT_SCORE": "The candidate had the highest deterministic score among valid candidates",
+    "BASELINE_SELECTED_NO_BETTER_OFFER": "No additional offer cleared both improvement thresholds",
+    "NO_VALID_OFFER": "The baseline and every alternative failed a required gate",
+    "TIE_BROKEN_BY_HIGHER_PROFIT": "Equal scores were resolved using higher contribution profit",
+    "TIE_BROKEN_BY_LOWER_DISCOUNT": "The remaining tie was resolved using lower discount cost",
+    "TIE_BROKEN_BY_FEWER_ADDITIONS": "The remaining tie was resolved using fewer added products",
+    "TIE_BROKEN_BY_LOWER_TOTAL": "The remaining tie was resolved using lower customer total",
+    "TIE_BROKEN_BY_CANDIDATE_ID": "The final exact tie was resolved lexicographically without randomness"
+  }
+}

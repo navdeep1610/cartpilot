@@ -1,0 +1,1627 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cartpilot.local/schemas/payment-state/1.0.0",
+  "title": "CartPilot Razorpay Payment State",
+  "description": "Auditable server-side payment lifecycle for Razorpay Standard Checkout in test mode. The record links a customer-confirmed offer to one Razorpay order, tracks every payment attempt and webhook idempotently, and prevents fulfilment until signature and captured-payment gates pass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "payment_record_id",
+    "internal_order_id",
+    "decision_id",
+    "session_id",
+    "created_at",
+    "updated_at",
+    "mode",
+    "currency",
+    "amount_unit",
+    "amount_paise",
+    "cart_hash",
+    "state",
+    "fulfilment_authorized",
+    "customer_confirmation",
+    "razorpay_order",
+    "checkout",
+    "verification",
+    "payment_attempts",
+    "webhook_events",
+    "retry_policy",
+    "state_transitions",
+    "audit"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "payment_record_id": {
+      "type": "string",
+      "pattern": "^PAYREC-[A-Z0-9-]{8,80}$"
+    },
+    "internal_order_id": {
+      "type": "string",
+      "pattern": "^ORD-[A-Z0-9-]{8,80}$"
+    },
+    "decision_id": {
+      "type": "string",
+      "pattern": "^DEC-[A-Z0-9-]{8,80}$"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 120
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "mode": {
+      "const": "test"
+    },
+    "currency": {
+      "const": "INR"
+    },
+    "amount_unit": {
+      "const": "minor_units_paise"
+    },
+    "amount_paise": {
+      "type": "integer",
+      "minimum": 100
+    },
+    "cart_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "state": {
+      "$ref": "#/$defs/internalPaymentState"
+    },
+    "fulfilment_authorized": {
+      "type": "boolean",
+      "description": "True only after all server-side payment gates have passed. A browser callback by itself never authorizes fulfilment; a verified captured state from a signed webhook or authenticated Razorpay API fetch is required."
+    },
+    "customer_confirmation": {
+      "$ref": "#/$defs/customerConfirmation"
+    },
+    "razorpay_order": {
+      "$ref": "#/$defs/razorpayOrder"
+    },
+    "checkout": {
+      "$ref": "#/$defs/checkoutState"
+    },
+    "verification": {
+      "$ref": "#/$defs/verificationState"
+    },
+    "payment_attempts": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/paymentAttempt"
+      }
+    },
+    "webhook_events": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/webhookEvent"
+      }
+    },
+    "retry_policy": {
+      "$ref": "#/$defs/retryPolicy"
+    },
+    "state_transitions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/stateTransition"
+      }
+    },
+    "audit": {
+      "$ref": "#/$defs/auditMetadata"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "fulfilment_authorized": {
+            "const": true
+          }
+        },
+        "required": [
+          "fulfilment_authorized"
+        ]
+      },
+      "then": {
+        "properties": {
+          "state": {
+            "const": "payment_captured"
+          },
+          "razorpay_order": {
+            "properties": {
+              "status": {
+                "const": "paid"
+              },
+              "amount_due_paise": {
+                "const": 0
+              }
+            },
+            "required": [
+              "status",
+              "amount_due_paise"
+            ]
+          },
+          "verification": {
+            "properties": {
+              "capture_confirmed": {
+                "const": true
+              },
+              "capture_confirmation_source": {
+                "enum": [
+                  "verified_webhook",
+                  "razorpay_api_fetch"
+                ]
+              }
+            },
+            "required": [
+              "capture_confirmed",
+              "capture_confirmation_source"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "razorpay_order": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "created",
+                  "attempted",
+                  "paid"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "customer_confirmation": {
+            "properties": {
+              "status": {
+                "const": "confirmed"
+              },
+              "decision_revalidated": {
+                "const": true
+              },
+              "order_creation_authorized": {
+                "const": true
+              }
+            },
+            "required": [
+              "status",
+              "decision_revalidated",
+              "order_creation_authorized"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "signature_verification_failed",
+              "payment_failed",
+              "cancelled",
+              "expired",
+              "refunded"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "fulfilment_authorized": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "payment_captured",
+              "refunded"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "retry_policy": {
+            "properties": {
+              "retry_allowed": {
+                "const": false
+              }
+            },
+            "required": [
+              "retry_allowed"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,100}$"
+    },
+    "nullableDateTime": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "internalPaymentState": {
+      "type": "string",
+      "enum": [
+        "awaiting_customer_confirmation",
+        "order_creation_authorized",
+        "razorpay_order_created",
+        "checkout_opened",
+        "payment_pending",
+        "payment_authorized",
+        "payment_captured",
+        "payment_failed",
+        "signature_verification_failed",
+        "cancelled",
+        "expired",
+        "refunded"
+      ]
+    },
+    "customerConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "status",
+        "confirmed_at",
+        "confirmed_amount_paise",
+        "confirmed_cart_hash",
+        "decision_revalidated",
+        "order_creation_authorized"
+      ],
+      "properties": {
+        "required": {
+          "const": true
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "awaiting_customer",
+            "confirmed",
+            "rejected",
+            "expired"
+          ]
+        },
+        "confirmed_at": {
+          "$ref": "#/$defs/nullableDateTime"
+        },
+        "confirmed_amount_paise": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 100
+        },
+        "confirmed_cart_hash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision_revalidated": {
+          "type": "boolean"
+        },
+        "order_creation_authorized": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "confirmed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "confirmed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "confirmed_amount_paise": {
+                "type": "integer",
+                "minimum": 100
+              },
+              "confirmed_cart_hash": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "order_creation_authorized": {
+                "const": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "order_creation_authorized": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "confirmed"
+              },
+              "decision_revalidated": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    "razorpayOrder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt",
+        "razorpay_order_id",
+        "status",
+        "amount_paise",
+        "amount_paid_paise",
+        "amount_due_paise",
+        "currency",
+        "created_at",
+        "stored_from_server_response",
+        "partial_payment_allowed",
+        "amount_matches_confirmed_cart",
+        "secret_key_present"
+      ],
+      "properties": {
+        "receipt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "razorpay_order_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^order_[A-Za-z0-9]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_created",
+            "created",
+            "attempted",
+            "paid"
+          ]
+        },
+        "amount_paise": {
+          "type": "integer",
+          "minimum": 100
+        },
+        "amount_paid_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "amount_due_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "currency": {
+          "const": "INR"
+        },
+        "created_at": {
+          "$ref": "#/$defs/nullableDateTime"
+        },
+        "stored_from_server_response": {
+          "type": "boolean"
+        },
+        "partial_payment_allowed": {
+          "const": false,
+          "description": "MVP policy: one full payment for one confirmed cart."
+        },
+        "amount_matches_confirmed_cart": {
+          "type": "boolean"
+        },
+        "secret_key_present": {
+          "const": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_created"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "razorpay_order_id": {
+                "type": "null"
+              },
+              "created_at": {
+                "type": "null"
+              },
+              "stored_from_server_response": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "razorpay_order_id": {
+                "type": "string",
+                "pattern": "^order_[A-Za-z0-9]+$"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "stored_from_server_response": {
+                "const": true
+              },
+              "amount_matches_confirmed_cart": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    "checkoutState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "opened_by_customer_action",
+        "order_id_source",
+        "checkout_amount_paise",
+        "client_callback_received",
+        "raw_card_data_stored",
+        "raw_upi_or_bank_credentials_stored"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_opened",
+            "opened",
+            "completed",
+            "dismissed",
+            "error"
+          ]
+        },
+        "opened_by_customer_action": {
+          "type": "boolean"
+        },
+        "order_id_source": {
+          "type": "string",
+          "enum": [
+            "server_database",
+            "not_applicable"
+          ],
+          "description": "The order ID trusted for signature verification must come from the server database, never from the browser callback."
+        },
+        "checkout_amount_paise": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 100
+        },
+        "client_callback_received": {
+          "type": "boolean"
+        },
+        "raw_card_data_stored": {
+          "const": false
+        },
+        "raw_upi_or_bank_credentials_stored": {
+          "const": false
+        }
+      }
+    },
+    "verificationState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checkout_signature_status",
+        "checkout_signature_verified",
+        "signed_order_id_source",
+        "webhook_capture_status",
+        "api_fetch_capture_status",
+        "capture_confirmed",
+        "capture_confirmation_source",
+        "raw_webhook_body_used",
+        "verification_completed_at"
+      ],
+      "properties": {
+        "checkout_signature_status": {
+          "type": "string",
+          "enum": [
+            "not_received",
+            "pending",
+            "verified",
+            "failed"
+          ]
+        },
+        "checkout_signature_verified": {
+          "type": "boolean"
+        },
+        "signed_order_id_source": {
+          "type": "string",
+          "enum": [
+            "server_database",
+            "not_applicable"
+          ]
+        },
+        "webhook_capture_status": {
+          "type": "string",
+          "enum": [
+            "not_received",
+            "pending",
+            "verified",
+            "rejected"
+          ]
+        },
+        "api_fetch_capture_status": {
+          "type": "string",
+          "enum": [
+            "not_checked",
+            "captured",
+            "not_captured",
+            "fetch_failed"
+          ]
+        },
+        "capture_confirmed": {
+          "type": "boolean"
+        },
+        "capture_confirmation_source": {
+          "type": "string",
+          "enum": [
+            "none",
+            "verified_webhook",
+            "razorpay_api_fetch"
+          ]
+        },
+        "raw_webhook_body_used": {
+          "type": "boolean",
+          "description": "Must be true when a webhook signature is verified. Parsed or re-serialized JSON is not a valid signature-verification input."
+        },
+        "verification_completed_at": {
+          "$ref": "#/$defs/nullableDateTime"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "checkout_signature_verified": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "checkout_signature_status": {
+                "const": "verified"
+              },
+              "signed_order_id_source": {
+                "const": "server_database"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "capture_confirmation_source": {
+                "const": "verified_webhook"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "webhook_capture_status": {
+                "const": "verified"
+              },
+              "raw_webhook_body_used": {
+                "const": true
+              },
+              "capture_confirmed": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "capture_confirmation_source": {
+                "const": "razorpay_api_fetch"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "api_fetch_capture_status": {
+                "const": "captured"
+              },
+              "capture_confirmed": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "capture_confirmed": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "capture_confirmation_source": {
+                "const": "none"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "paymentAttempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt_id",
+        "sequence",
+        "razorpay_payment_id",
+        "razorpay_order_id",
+        "status",
+        "status_source",
+        "callback_signature_status",
+        "signature_algorithm",
+        "signed_order_id_source",
+        "signature_stored",
+        "signature_logged",
+        "amount_paise",
+        "amount_refunded_paise",
+        "currency",
+        "error_code",
+        "error_description",
+        "previous_failed_event_observed",
+        "late_authorization_detected",
+        "fulfilment_eligible",
+        "retry_of_attempt_id",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^ATT-[A-Z0-9-]{8,80}$"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "razorpay_payment_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^pay_[A-Za-z0-9]+$"
+        },
+        "razorpay_order_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^order_[A-Za-z0-9]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "created",
+            "authorized",
+            "captured",
+            "refunded",
+            "failed",
+            "unknown"
+          ]
+        },
+        "status_source": {
+          "type": "string",
+          "enum": [
+            "none",
+            "checkout_callback",
+            "verified_webhook",
+            "razorpay_api_fetch"
+          ]
+        },
+        "callback_signature_status": {
+          "type": "string",
+          "enum": [
+            "not_received",
+            "pending",
+            "verified",
+            "failed"
+          ]
+        },
+        "signature_algorithm": {
+          "type": "string",
+          "enum": [
+            "HMAC_SHA256",
+            "not_applicable"
+          ]
+        },
+        "signed_order_id_source": {
+          "type": "string",
+          "enum": [
+            "server_database",
+            "not_applicable"
+          ]
+        },
+        "signature_stored": {
+          "type": "boolean",
+          "description": "Indicates protected persistence for verification/audit; the signature value must never be written to application logs."
+        },
+        "signature_logged": {
+          "const": false
+        },
+        "amount_paise": {
+          "type": "integer",
+          "minimum": 100
+        },
+        "amount_refunded_paise": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "currency": {
+          "const": "INR"
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        },
+        "error_description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 500
+        },
+        "previous_failed_event_observed": {
+          "type": "boolean"
+        },
+        "late_authorization_detected": {
+          "type": "boolean",
+          "description": "True when a payment previously observed as failed later becomes authorized or captured. Failed is not assumed to be permanently terminal."
+        },
+        "fulfilment_eligible": {
+          "type": "boolean"
+        },
+        "retry_of_attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^ATT-[A-Z0-9-]{8,80}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "fulfilment_eligible": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "captured"
+              },
+              "status_source": {
+                "enum": [
+                  "verified_webhook",
+                  "razorpay_api_fetch"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "callback_signature_status": {
+                "const": "verified"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "signature_algorithm": {
+                "const": "HMAC_SHA256"
+              },
+              "signed_order_id_source": {
+                "const": "server_database"
+              },
+              "signature_stored": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "late_authorization_detected": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "previous_failed_event_observed": {
+                "const": true
+              },
+              "status": {
+                "enum": [
+                  "authorized",
+                  "captured"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "webhookEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "internal_webhook_id",
+        "razorpay_event_id",
+        "event_type",
+        "received_at",
+        "signature_status",
+        "raw_body_used_for_verification",
+        "payload_hash",
+        "payload_storage",
+        "duplicate",
+        "duplicate_of_event_id",
+        "processing_status",
+        "response_status_code",
+        "razorpay_order_id",
+        "razorpay_payment_id",
+        "state_transition_applied",
+        "webhook_secret_logged"
+      ],
+      "properties": {
+        "internal_webhook_id": {
+          "type": "string",
+          "pattern": "^WHK-[A-Z0-9-]{8,80}$"
+        },
+        "razorpay_event_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Value received in x-razorpay-event-id and used as the webhook idempotency key."
+        },
+        "event_type": {
+          "type": "string",
+          "enum": [
+            "order.paid",
+            "payment.authorized",
+            "payment.captured",
+            "payment.failed",
+            "refund.created",
+            "refund.processed",
+            "refund.failed",
+            "other"
+          ]
+        },
+        "received_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "signature_status": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "failed"
+          ]
+        },
+        "raw_body_used_for_verification": {
+          "const": true
+        },
+        "payload_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "payload_storage": {
+          "type": "string",
+          "enum": [
+            "encrypted_restricted",
+            "redacted",
+            "hash_only"
+          ]
+        },
+        "duplicate": {
+          "type": "boolean"
+        },
+        "duplicate_of_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "processing_status": {
+          "type": "string",
+          "enum": [
+            "received",
+            "queued",
+            "processed",
+            "duplicate_ignored",
+            "rejected_signature",
+            "processing_failed"
+          ]
+        },
+        "response_status_code": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "razorpay_order_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^order_[A-Za-z0-9]+$"
+        },
+        "razorpay_payment_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^pay_[A-Za-z0-9]+$"
+        },
+        "state_transition_applied": {
+          "type": "boolean"
+        },
+        "webhook_secret_logged": {
+          "const": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "duplicate": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "duplicate_of_event_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "processing_status": {
+                "const": "duplicate_ignored"
+              },
+              "state_transition_applied": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "duplicate_of_event_id": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "signature_status": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "processing_status": {
+                "const": "rejected_signature"
+              },
+              "state_transition_applied": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "retryPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retry_count",
+        "maximum_checkout_retries",
+        "retry_allowed",
+        "reuse_existing_order_allowed",
+        "requires_new_order",
+        "same_amount",
+        "same_cart_hash",
+        "same_checkout_context",
+        "reason_code",
+        "duplicate_fulfilment_prevention_enabled"
+      ],
+      "properties": {
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "maximum_checkout_retries": {
+          "const": 3,
+          "description": "CartPilot MVP policy cap, not a statement of a Razorpay platform limit."
+        },
+        "retry_allowed": {
+          "type": "boolean"
+        },
+        "reuse_existing_order_allowed": {
+          "type": "boolean"
+        },
+        "requires_new_order": {
+          "type": "boolean"
+        },
+        "same_amount": {
+          "type": "boolean"
+        },
+        "same_cart_hash": {
+          "type": "boolean"
+        },
+        "same_checkout_context": {
+          "type": "boolean"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "duplicate_fulfilment_prevention_enabled": {
+          "const": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "reuse_existing_order_allowed": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "retry_allowed": {
+                "const": true
+              },
+              "requires_new_order": {
+                "const": false
+              },
+              "same_amount": {
+                "const": true
+              },
+              "same_cart_hash": {
+                "const": true
+              },
+              "same_checkout_context": {
+                "const": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "same_amount": {
+                    "const": false
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "same_cart_hash": {
+                    "const": false
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "same_checkout_context": {
+                    "const": false
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "reuse_existing_order_allowed": {
+                "const": false
+              },
+              "requires_new_order": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    "stateTransition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transition_id",
+        "from_state",
+        "to_state",
+        "trigger",
+        "actor",
+        "source_event_id",
+        "applied",
+        "reason_code",
+        "processed_at"
+      ],
+      "properties": {
+        "transition_id": {
+          "type": "string",
+          "pattern": "^TRN-[A-Z0-9-]{8,80}$"
+        },
+        "from_state": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/internalPaymentState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "to_state": {
+          "$ref": "#/$defs/internalPaymentState"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "record_created",
+            "customer_confirmed",
+            "order_created",
+            "checkout_opened",
+            "checkout_callback_received",
+            "webhook_received",
+            "api_status_fetch",
+            "retry_requested",
+            "late_authorization",
+            "refund_update",
+            "customer_cancelled",
+            "expired",
+            "manual_review"
+          ]
+        },
+        "actor": {
+          "type": "string",
+          "enum": [
+            "customer",
+            "backend",
+            "razorpay_checkout",
+            "razorpay_webhook",
+            "reconciliation_job",
+            "operator"
+          ]
+        },
+        "source_event_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/reasonCode"
+        },
+        "processed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "auditMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trace_id",
+        "decision_hash",
+        "payment_record_hash",
+        "last_verified_state_source",
+        "internal_order_id_unique",
+        "razorpay_order_id_unique",
+        "razorpay_payment_id_uniqueness_enforced",
+        "webhook_event_id_uniqueness_enforced",
+        "amount_reconciliation_status",
+        "contains_key_secret",
+        "contains_webhook_secret",
+        "contains_raw_payment_credentials",
+        "contains_unredacted_signature_in_logs",
+        "manual_review_required",
+        "manual_review_reason_code"
+      ],
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "pattern": "^TRACE-[A-Z0-9-]{8,80}$"
+        },
+        "decision_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "payment_record_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "last_verified_state_source": {
+          "type": "string",
+          "enum": [
+            "none",
+            "verified_webhook",
+            "razorpay_api_fetch"
+          ]
+        },
+        "internal_order_id_unique": {
+          "const": true
+        },
+        "razorpay_order_id_unique": {
+          "const": true
+        },
+        "razorpay_payment_id_uniqueness_enforced": {
+          "const": true
+        },
+        "webhook_event_id_uniqueness_enforced": {
+          "const": true
+        },
+        "amount_reconciliation_status": {
+          "type": "string",
+          "enum": [
+            "not_checked",
+            "matched",
+            "mismatch"
+          ]
+        },
+        "contains_key_secret": {
+          "const": false
+        },
+        "contains_webhook_secret": {
+          "const": false
+        },
+        "contains_raw_payment_credentials": {
+          "const": false
+        },
+        "contains_unredacted_signature_in_logs": {
+          "const": false
+        },
+        "manual_review_required": {
+          "type": "boolean"
+        },
+        "manual_review_reason_code": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/reasonCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "manual_review_required": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "manual_review_reason_code": {
+                "$ref": "#/$defs/reasonCode"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "manual_review_reason_code": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1.0.0",
+      "payment_record_id": "PAYREC-20260824-0001",
+      "internal_order_id": "ORD-20260824-0001",
+      "decision_id": "DEC-20260824-0001",
+      "session_id": "SESSION-DEMO-0001",
+      "created_at": "2026-08-24T10:00:00+05:30",
+      "updated_at": "2026-08-24T10:03:10+05:30",
+      "mode": "test",
+      "currency": "INR",
+      "amount_unit": "minor_units_paise",
+      "amount_paise": 139900,
+      "cart_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "state": "payment_captured",
+      "fulfilment_authorized": true,
+      "customer_confirmation": {
+        "required": true,
+        "status": "confirmed",
+        "confirmed_at": "2026-08-24T10:00:30+05:30",
+        "confirmed_amount_paise": 139900,
+        "confirmed_cart_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "decision_revalidated": true,
+        "order_creation_authorized": true
+      },
+      "razorpay_order": {
+        "receipt": "ORD-20260824-0001",
+        "razorpay_order_id": "order_DEMO123456789",
+        "status": "paid",
+        "amount_paise": 139900,
+        "amount_paid_paise": 139900,
+        "amount_due_paise": 0,
+        "currency": "INR",
+        "created_at": "2026-08-24T10:00:35+05:30",
+        "stored_from_server_response": true,
+        "partial_payment_allowed": false,
+        "amount_matches_confirmed_cart": true,
+        "secret_key_present": false
+      },
+      "checkout": {
+        "status": "completed",
+        "opened_by_customer_action": true,
+        "order_id_source": "server_database",
+        "checkout_amount_paise": 139900,
+        "client_callback_received": true,
+        "raw_card_data_stored": false,
+        "raw_upi_or_bank_credentials_stored": false
+      },
+      "verification": {
+        "checkout_signature_status": "verified",
+        "checkout_signature_verified": true,
+        "signed_order_id_source": "server_database",
+        "webhook_capture_status": "verified",
+        "api_fetch_capture_status": "not_checked",
+        "capture_confirmed": true,
+        "capture_confirmation_source": "verified_webhook",
+        "raw_webhook_body_used": true,
+        "verification_completed_at": "2026-08-24T10:03:10+05:30"
+      },
+      "payment_attempts": [
+        {
+          "attempt_id": "ATT-20260824-0001",
+          "sequence": 1,
+          "razorpay_payment_id": "pay_DEMO123456789",
+          "razorpay_order_id": "order_DEMO123456789",
+          "status": "captured",
+          "status_source": "verified_webhook",
+          "callback_signature_status": "verified",
+          "signature_algorithm": "HMAC_SHA256",
+          "signed_order_id_source": "server_database",
+          "signature_stored": true,
+          "signature_logged": false,
+          "amount_paise": 139900,
+          "amount_refunded_paise": 0,
+          "currency": "INR",
+          "error_code": null,
+          "error_description": null,
+          "previous_failed_event_observed": false,
+          "late_authorization_detected": false,
+          "fulfilment_eligible": true,
+          "retry_of_attempt_id": null,
+          "created_at": "2026-08-24T10:01:00+05:30",
+          "updated_at": "2026-08-24T10:03:10+05:30"
+        }
+      ],
+      "webhook_events": [
+        {
+          "internal_webhook_id": "WHK-20260824-0001",
+          "razorpay_event_id": "rfndemo_event_0001",
+          "event_type": "order.paid",
+          "received_at": "2026-08-24T10:03:09+05:30",
+          "signature_status": "verified",
+          "raw_body_used_for_verification": true,
+          "payload_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "payload_storage": "encrypted_restricted",
+          "duplicate": false,
+          "duplicate_of_event_id": null,
+          "processing_status": "processed",
+          "response_status_code": 200,
+          "razorpay_order_id": "order_DEMO123456789",
+          "razorpay_payment_id": "pay_DEMO123456789",
+          "state_transition_applied": true,
+          "webhook_secret_logged": false
+        }
+      ],
+      "retry_policy": {
+        "retry_count": 0,
+        "maximum_checkout_retries": 3,
+        "retry_allowed": false,
+        "reuse_existing_order_allowed": false,
+        "requires_new_order": false,
+        "same_amount": true,
+        "same_cart_hash": true,
+        "same_checkout_context": true,
+        "reason_code": "PAYMENT_ALREADY_CAPTURED",
+        "duplicate_fulfilment_prevention_enabled": true
+      },
+      "state_transitions": [
+        {
+          "transition_id": "TRN-20260824-0001",
+          "from_state": null,
+          "to_state": "awaiting_customer_confirmation",
+          "trigger": "record_created",
+          "actor": "backend",
+          "source_event_id": null,
+          "applied": true,
+          "reason_code": "PAYMENT_RECORD_CREATED",
+          "processed_at": "2026-08-24T10:00:00+05:30"
+        },
+        {
+          "transition_id": "TRN-20260824-0002",
+          "from_state": "awaiting_customer_confirmation",
+          "to_state": "order_creation_authorized",
+          "trigger": "customer_confirmed",
+          "actor": "customer",
+          "source_event_id": "DEC-20260824-0001",
+          "applied": true,
+          "reason_code": "CONFIRMED_CART_REVALIDATED",
+          "processed_at": "2026-08-24T10:00:30+05:30"
+        },
+        {
+          "transition_id": "TRN-20260824-0003",
+          "from_state": "order_creation_authorized",
+          "to_state": "razorpay_order_created",
+          "trigger": "order_created",
+          "actor": "backend",
+          "source_event_id": "order_DEMO123456789",
+          "applied": true,
+          "reason_code": "RAZORPAY_ORDER_STORED",
+          "processed_at": "2026-08-24T10:00:35+05:30"
+        },
+        {
+          "transition_id": "TRN-20260824-0004",
+          "from_state": "razorpay_order_created",
+          "to_state": "checkout_opened",
+          "trigger": "checkout_opened",
+          "actor": "customer",
+          "source_event_id": null,
+          "applied": true,
+          "reason_code": "CUSTOMER_OPENED_CHECKOUT",
+          "processed_at": "2026-08-24T10:00:45+05:30"
+        },
+        {
+          "transition_id": "TRN-20260824-0005",
+          "from_state": "checkout_opened",
+          "to_state": "payment_pending",
+          "trigger": "checkout_callback_received",
+          "actor": "backend",
+          "source_event_id": "pay_DEMO123456789",
+          "applied": true,
+          "reason_code": "CALLBACK_SIGNATURE_VERIFIED_AWAITING_CAPTURE",
+          "processed_at": "2026-08-24T10:02:30+05:30"
+        },
+        {
+          "transition_id": "TRN-20260824-0006",
+          "from_state": "payment_pending",
+          "to_state": "payment_captured",
+          "trigger": "webhook_received",
+          "actor": "razorpay_webhook",
+          "source_event_id": "rfndemo_event_0001",
+          "applied": true,
+          "reason_code": "VERIFIED_ORDER_PAID_WEBHOOK",
+          "processed_at": "2026-08-24T10:03:10+05:30"
+        }
+      ],
+      "audit": {
+        "trace_id": "TRACE-20260824-0001",
+        "decision_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "payment_record_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+        "last_verified_state_source": "verified_webhook",
+        "internal_order_id_unique": true,
+        "razorpay_order_id_unique": true,
+        "razorpay_payment_id_uniqueness_enforced": true,
+        "webhook_event_id_uniqueness_enforced": true,
+        "amount_reconciliation_status": "matched",
+        "contains_key_secret": false,
+        "contains_webhook_secret": false,
+        "contains_raw_payment_credentials": false,
+        "contains_unredacted_signature_in_logs": false,
+        "manual_review_required": false,
+        "manual_review_reason_code": null
+      }
+    }
+  ],
+  "$comment": "Core state rules: create the Razorpay order only after explicit customer confirmation and deterministic revalidation; verify the checkout signature server-side with the order ID stored in the database whenever a browser callback is received; verify webhook signatures against the raw request body; deduplicate webhooks by x-razorpay-event-id; never fulfil from the browser callback alone; fulfil only after captured status is confirmed by a verified webhook or authenticated Razorpay API fetch. A missing browser callback must not block a legitimately captured payment confirmed through those server-side sources. A failed payment may later become authorized, so late-authorization events must be reconciled instead of discarded."
+}

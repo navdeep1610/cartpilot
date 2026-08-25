@@ -1,0 +1,677 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cartpilot.local/schemas/customer-intent/1.0.0",
+  "title": "CartPilot Customer Intent",
+  "description": "Validated structured output expected from the LLM. This object describes the shopper's stated request and constraints; it does not authorize a recommendation, discount, order, or payment action.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "language",
+    "customer_message_summary",
+    "shopping_goal",
+    "requested_items",
+    "skin_profile",
+    "routine_context",
+    "shopping_constraints",
+    "price_context",
+    "safety_context",
+    "clarification",
+    "extraction_confidence"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "language": {
+      "type": "string",
+      "enum": [
+        "en",
+        "hi",
+        "en_hi",
+        "unknown"
+      ]
+    },
+    "customer_message_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "A concise factual summary without adding unstated skin conditions, budgets, product preferences, or medical claims."
+    },
+    "shopping_goal": {
+      "type": "string",
+      "enum": [
+        "find_single_product",
+        "compare_products",
+        "complete_routine",
+        "add_complementary_product",
+        "find_substitute",
+        "find_lower_price_option",
+        "request_discount",
+        "review_cart",
+        "start_checkout",
+        "unknown"
+      ]
+    },
+    "requested_items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/requestedItem"
+      }
+    },
+    "skin_profile": {
+      "$ref": "#/$defs/skinProfile"
+    },
+    "routine_context": {
+      "$ref": "#/$defs/routineContext"
+    },
+    "shopping_constraints": {
+      "$ref": "#/$defs/shoppingConstraints"
+    },
+    "price_context": {
+      "$ref": "#/$defs/priceContext"
+    },
+    "safety_context": {
+      "$ref": "#/$defs/safetyContext"
+    },
+    "clarification": {
+      "$ref": "#/$defs/clarification"
+    },
+    "extraction_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence in intent extraction only; it is not purchase probability, product suitability, or offer confidence."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "price_context": {
+            "properties": {
+              "signal": {
+                "const": "explicit_budget"
+              }
+            },
+            "required": [
+              "signal"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "price_context": {
+            "properties": {
+              "budget_inr": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100000
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "clarification": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            },
+            "required": [
+              "required"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "clarification": {
+            "properties": {
+              "missing_fields": {
+                "minItems": 1
+              },
+              "question": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "productType": {
+      "type": "string",
+      "enum": [
+        "cleanser",
+        "serum",
+        "moisturizer",
+        "sunscreen",
+        "toner",
+        "exfoliant",
+        "acne_treatment",
+        "mask",
+        "eye_care",
+        "lip_care",
+        "bundle",
+        "unknown"
+      ]
+    },
+    "skinType": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "dry",
+        "oily",
+        "combination",
+        "sensitive",
+        "unknown"
+      ]
+    },
+    "skinConcern": {
+      "type": "string",
+      "enum": [
+        "daily_cleansing",
+        "dryness",
+        "dehydration",
+        "sensitivity",
+        "redness",
+        "excess_oil",
+        "acne_prone",
+        "clogged_pores",
+        "blackheads",
+        "visible_pores",
+        "dullness",
+        "uneven_tone",
+        "dark_spots_appearance",
+        "uneven_texture",
+        "fine_lines",
+        "firmness_appearance",
+        "barrier_support",
+        "sun_protection",
+        "tired_under_eye_appearance",
+        "under_eye_hydration",
+        "dry_lips",
+        "unknown"
+      ]
+    },
+    "activeFamily": {
+      "type": "string",
+      "enum": [
+        "retinoid_or_retinol",
+        "benzoyl_peroxide",
+        "salicylic_acid_or_bha",
+        "glycolic_or_lactic_acid_aha",
+        "vitamin_c",
+        "niacinamide",
+        "other_declared_active",
+        "unknown_active"
+      ]
+    },
+    "triStateDisclosure": {
+      "type": "string",
+      "enum": [
+        "explicit_true",
+        "explicit_false",
+        "not_mentioned"
+      ],
+      "description": "The LLM must not infer a safety condition. It records only what the shopper explicitly states."
+    },
+    "requestedItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query_text",
+        "product_type",
+        "importance",
+        "quantity",
+        "matched_catalog_product_ids",
+        "unmatched_product_mention"
+      ],
+      "properties": {
+        "query_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "product_type": {
+          "$ref": "#/$defs/productType"
+        },
+        "importance": {
+          "type": "string",
+          "enum": [
+            "required",
+            "preferred",
+            "optional"
+          ]
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "matched_catalog_product_ids": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(CLN|SRM|MST|SUN|TON|EXF|ACN|MSK|EYE|LIP|BND)-[0-9]{3}$"
+          },
+          "description": "Untrusted catalog matches proposed by the LLM. The catalog engine must verify every identifier."
+        },
+        "unmatched_product_mention": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 120
+        }
+      }
+    },
+    "skinProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "skin_types",
+        "concerns",
+        "source"
+      ],
+      "properties": {
+        "skin_types": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/skinType"
+          }
+        },
+        "concerns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/skinConcern"
+          }
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "explicit_customer_statement",
+            "not_provided"
+          ],
+          "description": "Skin profile data must not be inferred from demographics, images, or purchasing power."
+        }
+      }
+    },
+    "routineContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "desired_scope",
+        "current_catalog_product_ids",
+        "current_catalog_variant_ids",
+        "unmatched_current_product_mentions",
+        "disclosed_active_families"
+      ],
+      "properties": {
+        "desired_scope": {
+          "type": "string",
+          "enum": [
+            "single_product",
+            "complementary_pair",
+            "partial_routine",
+            "complete_routine",
+            "replacement",
+            "unknown"
+          ]
+        },
+        "current_catalog_product_ids": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(CLN|SRM|MST|SUN|TON|EXF|ACN|MSK|EYE|LIP|BND)-[0-9]{3}$"
+          }
+        },
+        "current_catalog_variant_ids": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(CLN|SRM|MST|SUN|TON|EXF|ACN|MSK|EYE|LIP|BND)-[0-9]{3}-[A-Z0-9]+$"
+          }
+        },
+        "unmatched_current_product_mentions": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "disclosed_active_families": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/activeFamily"
+          }
+        }
+      }
+    },
+    "shoppingConstraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preferred_sizes",
+        "texture_preferences",
+        "finish_preferences",
+        "ingredient_preferences",
+        "ingredient_exclusions",
+        "product_type_exclusions",
+        "avoid_strong_actives"
+      ],
+      "properties": {
+        "preferred_sizes": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "maxLength": 30
+          }
+        },
+        "texture_preferences": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "gel",
+              "cream",
+              "lotion",
+              "foaming",
+              "lightweight",
+              "rich",
+              "no_preference"
+            ]
+          }
+        },
+        "finish_preferences": {
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "matte",
+              "hydrating",
+              "non_greasy",
+              "no_preference"
+            ]
+          }
+        },
+        "ingredient_preferences": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "ingredient_exclusions": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "product_type_exclusions": {
+          "type": "array",
+          "maxItems": 11,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/productType"
+          }
+        },
+        "avoid_strong_actives": {
+          "type": "boolean"
+        }
+      }
+    },
+    "priceContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signal",
+        "budget_inr",
+        "currency",
+        "explicit_discount_request",
+        "explicit_lower_price_request"
+      ],
+      "properties": {
+        "signal": {
+          "type": "string",
+          "enum": [
+            "none",
+            "explicit_budget",
+            "explicit_price_objection",
+            "explicit_discount_request",
+            "explicit_lower_price_request"
+          ]
+        },
+        "budget_inr": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 100000,
+          "description": "Must be null unless the shopper stated a budget. The LLM must never infer purchasing power."
+        },
+        "currency": {
+          "const": "INR"
+        },
+        "explicit_discount_request": {
+          "type": "boolean"
+        },
+        "explicit_lower_price_request": {
+          "type": "boolean"
+        }
+      }
+    },
+    "safetyContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "currently_irritated_skin",
+        "open_wounds",
+        "sunburned_skin",
+        "known_product_reaction",
+        "professional_guidance_requested",
+        "needs_professional_guidance",
+        "guidance_reason_codes"
+      ],
+      "properties": {
+        "currently_irritated_skin": {
+          "$ref": "#/$defs/triStateDisclosure"
+        },
+        "open_wounds": {
+          "$ref": "#/$defs/triStateDisclosure"
+        },
+        "sunburned_skin": {
+          "$ref": "#/$defs/triStateDisclosure"
+        },
+        "known_product_reaction": {
+          "$ref": "#/$defs/triStateDisclosure"
+        },
+        "professional_guidance_requested": {
+          "type": "boolean"
+        },
+        "needs_professional_guidance": {
+          "type": "boolean"
+        },
+        "guidance_reason_codes": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "severe_or_persistent_symptoms_disclosed",
+              "current_irritation_or_skin_damage",
+              "strong_active_combination_requires_review",
+              "unknown_treatment_or_active",
+              "customer_requests_medical_diagnosis",
+              "insufficient_suitability_information"
+            ]
+          }
+        }
+      }
+    },
+    "clarification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "missing_fields",
+        "question"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "missing_fields": {
+          "type": "array",
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "requested_product_or_goal",
+              "skin_type",
+              "skin_concern",
+              "budget",
+              "current_strong_actives",
+              "ingredient_exclusions",
+              "routine_scope",
+              "product_size"
+            ]
+          }
+        },
+        "question": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 240,
+          "description": "Ask at most one concise question that resolves the highest-priority missing information."
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schema_version": "1.0.0",
+      "language": "en",
+      "customer_message_summary": "Shopper wants a toner and complementary cleanser for dry skin within ₹1,000.",
+      "shopping_goal": "add_complementary_product",
+      "requested_items": [
+        {
+          "query_text": "toner",
+          "product_type": "toner",
+          "importance": "required",
+          "quantity": 1,
+          "matched_catalog_product_ids": [
+            "TON-001"
+          ],
+          "unmatched_product_mention": null
+        },
+        {
+          "query_text": "face wash",
+          "product_type": "cleanser",
+          "importance": "preferred",
+          "quantity": 1,
+          "matched_catalog_product_ids": [
+            "CLN-001"
+          ],
+          "unmatched_product_mention": null
+        }
+      ],
+      "skin_profile": {
+        "skin_types": [
+          "dry"
+        ],
+        "concerns": [
+          "dryness"
+        ],
+        "source": "explicit_customer_statement"
+      },
+      "routine_context": {
+        "desired_scope": "complementary_pair",
+        "current_catalog_product_ids": [],
+        "current_catalog_variant_ids": [],
+        "unmatched_current_product_mentions": [],
+        "disclosed_active_families": []
+      },
+      "shopping_constraints": {
+        "preferred_sizes": [],
+        "texture_preferences": [
+          "no_preference"
+        ],
+        "finish_preferences": [
+          "hydrating"
+        ],
+        "ingredient_preferences": [],
+        "ingredient_exclusions": [],
+        "product_type_exclusions": [],
+        "avoid_strong_actives": false
+      },
+      "price_context": {
+        "signal": "explicit_budget",
+        "budget_inr": 1000,
+        "currency": "INR",
+        "explicit_discount_request": false,
+        "explicit_lower_price_request": false
+      },
+      "safety_context": {
+        "currently_irritated_skin": "not_mentioned",
+        "open_wounds": "not_mentioned",
+        "sunburned_skin": "not_mentioned",
+        "known_product_reaction": "not_mentioned",
+        "professional_guidance_requested": false,
+        "needs_professional_guidance": false,
+        "guidance_reason_codes": []
+      },
+      "clarification": {
+        "required": false,
+        "missing_fields": [],
+        "question": null
+      },
+      "extraction_confidence": 0.96
+    }
+  ],
+  "$comment": "Demographics, protected characteristics, device value, inferred wealth, medical diagnosis, final product suitability, discount decisions, order actions, and payment decisions are intentionally excluded. Those decisions belong to deterministic backend engines and policy gates."
+}

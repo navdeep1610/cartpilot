@@ -1,0 +1,1008 @@
+"use client";
+
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  ChevronDown,
+  Minus,
+  Pause,
+  Play,
+  Plus,
+  LockKeyhole,
+  Save,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  UserRound,
+  X,
+} from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { PublicCatalogProduct, PublicCatalogResponse } from "@/domain/catalog/public-catalog";
+import {
+  normalizeCustomerProfile,
+  type CustomerProfileData,
+  type SavedCustomerProfile,
+} from "@/domain/customers/customer-profile";
+import { formatInr } from "@/domain/money";
+
+interface RecommendationResponse {
+  status: "ready" | "clarification_required" | "professional_guidance" | "no_match";
+  headline: string;
+  summary: string;
+  items: Array<{
+    productId: string;
+    variantId: string;
+    productName: string;
+    productType: string;
+    size: string;
+    pricePaise: number;
+    routineStep: string;
+    reason: string;
+    warning: string | null;
+  }>;
+  safetyNotes: string[];
+  clarificationQuestion: string | null;
+  intentSource: "gemini" | "deterministic_fallback";
+  disclaimer: string;
+}
+
+interface CustomerOfferCandidate {
+  candidateId: string;
+  candidateType: string;
+  lines: Array<{
+    variantId: string;
+    productId: string;
+    productName: string;
+    productType: string;
+    size: string;
+    quantity: number;
+    unitPricePaise: number;
+    lineDiscountPaise: number;
+    lineFinalPaise: number;
+  }>;
+  grossPaise: number;
+  savingPaise: number;
+  totalPaise: number;
+}
+
+interface OfferResponse {
+  decisionId: string;
+  selectedCandidateId: string;
+  baselineCandidateId: string;
+  evaluatedCartLines: Array<{ variantId: string; quantity: number }>;
+  selected: CustomerOfferCandidate;
+  baseline: CustomerOfferCandidate;
+  explanation: {
+    headline: string;
+    summary: string;
+    offerReason: string;
+    discountMessage: string | null;
+    safetyNotes: string[];
+  };
+  customerConfirmationRequired: true;
+  orderCreationAuthorized: false;
+}
+
+interface CheckoutOrderResponse {
+  paymentRecordId: string;
+  keyId: string;
+  orderId: string;
+  amountPaise: number;
+  currency: "INR";
+  merchantName: string;
+  description: string;
+  testMode: true;
+}
+
+interface RazorpayCallback {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+interface CustomerProfileResponse {
+  profile: SavedCustomerProfile | null;
+  message?: string;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+const productTones: Record<string, string> = {
+  Cleanser: "mint",
+  Serum: "sand",
+  Moisturizer: "sage",
+  Sunscreen: "peach",
+  Toner: "sky",
+  Exfoliant: "lilac",
+  "Acne Treatment": "coral",
+  Mask: "clay",
+  "Eye Care": "blue",
+  "Lip Care": "rose",
+  Bundle: "gold",
+};
+
+const productImages: Record<string, string> = {
+  Cleanser: "/products/cleanser.png",
+  Serum: "/products/serum.png",
+  Moisturizer: "/products/moisturizer.png",
+  Sunscreen: "/products/sunscreen.png",
+  Toner: "/products/toner.png",
+  Exfoliant: "/products/exfoliant.png",
+  "Acne Treatment": "/products/acne-treatment.png",
+  Mask: "/products/mask.png",
+  "Eye Care": "/products/eye-care.png",
+  "Lip Care": "/products/lip-care.png",
+  Bundle: "/products/bundle.png",
+};
+
+const emptyProfile: CustomerProfileData = {
+  name: "",
+  email: "",
+  phone: "",
+  deliveryAddress: "",
+};
+
+const profileStorageKey = "cartpilot-customer-profile-v1";
+
+const skinConcernCollections = [
+  {
+    id: "uneven_tone",
+    label: "Uneven tone",
+    description: "Brightening and dark-spot support for a more even-looking complexion.",
+    concernKeys: ["uneven_tone", "uneven_tone_appearance", "dark_spots_appearance", "dullness"],
+  },
+  {
+    id: "acne_control",
+    label: "Acne control",
+    description: "Catalog options for spots, clogged pores, blackheads and breakout-prone skin.",
+    concernKeys: ["acne_prone", "individual_spots", "clogged_pores", "clogged_pores_appearance", "blackheads"],
+  },
+  {
+    id: "oiliness",
+    label: "Oiliness",
+    description: "Lightweight care that supports oil control and a less shiny finish.",
+    concernKeys: ["excess_oil", "matte_finish", "visible_pores", "lightweight_finish"],
+  },
+  {
+    id: "wrinkles",
+    label: "Wrinkles & fine lines",
+    description: "Fine-line, texture and firmness support from suitable treatment products.",
+    concernKeys: ["fine_lines", "firmness_appearance"],
+  },
+  {
+    id: "dryness",
+    label: "Dryness",
+    description: "Hydration and barrier-support products for dry or dehydrated-feeling skin.",
+    concernKeys: ["dryness", "dehydration", "deep_hydration", "hydration", "barrier_support"],
+  },
+] as const;
+
+type SkinConcernId = (typeof skinConcernCollections)[number]["id"];
+
+const bundleBannerProductIds = ["BND-001", "BND-002", "BND-003"] as const;
+
+export function StorefrontExperience({ catalog }: { catalog: PublicCatalogResponse }) {
+  const [activeCategory, setActiveCategory] = useState("All");
+  const [activeSkinConcern, setActiveSkinConcern] = useState<SkinConcernId>("uneven_tone");
+  const [activeBundleSlide, setActiveBundleSlide] = useState(0);
+  const [bundleBannerPaused, setBundleBannerPaused] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const [cart, setCart] = useState<Record<string, number>>({});
+  const [cartOpen, setCartOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profile, setProfile] = useState<CustomerProfileData>(emptyProfile);
+  const [profileDraft, setProfileDraft] = useState<CustomerProfileData>(emptyProfile);
+  const [profileStored, setProfileStored] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
+  const [profileSaveStatus, setProfileSaveStatus] = useState<"idle" | "saving">("idle");
+  const [assistantMessage, setAssistantMessage] = useState(
+    "I have oily skin and clogged pores. Keep the routine simple.",
+  );
+  const [lastIntentMessage, setLastIntentMessage] = useState("Review my cart");
+  const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
+  const [recommendationStatus, setRecommendationStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [offer, setOffer] = useState<OfferResponse | null>(null);
+  const [offerStatus, setOfferStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [acceptedOffer, setAcceptedOffer] = useState<OfferResponse | null>(null);
+  const [exactTotalConfirmed, setExactTotalConfirmed] = useState(false);
+  const [checkoutStatus, setCheckoutStatus] = useState<"idle" | "preparing" | "waiting" | "success" | "failure">("idle");
+  const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
+
+  const categories = useMemo(
+    () => ["All", ...new Set(catalog.products.map((product) => product.productType))],
+    [catalog.products],
+  );
+  const productByVariant = useMemo(
+    () =>
+      new Map(
+        catalog.products.flatMap((product) =>
+          product.variants.map((variant) => [variant.variantId, { product, variant }] as const),
+        ),
+      ),
+    [catalog.products],
+  );
+  const bannerBundles = useMemo(
+    () =>
+      bundleBannerProductIds
+        .map((productId) => catalog.products.find((product) => product.productId === productId))
+        .filter((product): product is PublicCatalogProduct => Boolean(product)),
+    [catalog.products],
+  );
+  const bannerBundleCount = bannerBundles.length;
+  const activeBannerBundle = bannerBundles[activeBundleSlide % Math.max(1, bannerBundles.length)];
+  const activeBannerVariant = activeBannerBundle?.variants.find((variant) => variant.isDefault) ?? activeBannerBundle?.variants[0];
+  const filteredProducts = catalog.products.filter(
+    (product) => activeCategory === "All" || product.productType === activeCategory,
+  );
+  const visibleProducts = showAll ? filteredProducts : filteredProducts.slice(0, 6);
+  const selectedSkinConcern = skinConcernCollections.find((concern) => concern.id === activeSkinConcern) ?? skinConcernCollections[0];
+  const concernProducts = useMemo(
+    () => productsForConcern(catalog.products, selectedSkinConcern.concernKeys).slice(0, 3),
+    [catalog.products, selectedSkinConcern],
+  );
+  const cartLines = useMemo(
+    () =>
+      Object.entries(cart)
+        .filter(([, quantity]) => quantity > 0)
+        .map(([variantId, quantity]) => ({ variantId, quantity })),
+    [cart],
+  );
+  const cartCount = cartLines.reduce((total, line) => total + line.quantity, 0);
+  const cartSubtotal = cartLines.reduce((total, line) => {
+    const item = productByVariant.get(line.variantId);
+    return total + (item?.variant.pricePaise ?? 0) * line.quantity;
+  }, 0);
+  const cartSignature = cartLines.map((line) => `${line.variantId}:${line.quantity}`).sort().join("|");
+
+  useEffect(() => {
+    if (bundleBannerPaused || bannerBundleCount < 2) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const interval = window.setInterval(() => {
+      setActiveBundleSlide((current) => (current + 1) % bannerBundleCount);
+    }, 6_500);
+    return () => window.clearInterval(interval);
+  }, [bannerBundleCount, bundleBannerPaused]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadProfile() {
+      const legacyProfile = readLegacyProfile();
+      try {
+        const response = await fetch("/api/v1/customer-profile", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const result = (await response.json()) as CustomerProfileResponse | { message?: string };
+        if (!response.ok || !("profile" in result)) throw new Error(result.message || "Profile unavailable");
+        if (result.profile) {
+          const savedProfile = customerProfileData(result.profile);
+          setProfile(savedProfile);
+          setProfileDraft(savedProfile);
+          setProfileStored(true);
+          window.localStorage.removeItem(profileStorageKey);
+          return;
+        }
+
+        if (legacyProfile && isCompleteProfile(legacyProfile)) {
+          const migrationResponse = await fetch("/api/v1/customer-profile", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(legacyProfile),
+            signal: controller.signal,
+          });
+          const migration = (await migrationResponse.json()) as CustomerProfileResponse | { message?: string };
+          if (migrationResponse.ok && "profile" in migration && migration.profile) {
+            const savedProfile = customerProfileData(migration.profile);
+            setProfile(savedProfile);
+            setProfileDraft(savedProfile);
+            setProfileStored(true);
+            window.localStorage.removeItem(profileStorageKey);
+            return;
+          }
+        }
+
+        if (legacyProfile) {
+          setProfile(legacyProfile);
+          setProfileDraft(legacyProfile);
+        }
+      } catch {
+        if (legacyProfile && !controller.signal.aborted) {
+          setProfile(legacyProfile);
+          setProfileDraft(legacyProfile);
+        }
+      }
+    }
+    void loadProfile();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (cartLines.length === 0 || acceptedOffer) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setOfferStatus("loading");
+      try {
+        const response = await fetch("/api/v1/offers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cartLines, message: lastIntentMessage }),
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as OfferResponse | { message?: string };
+        if (!response.ok || !("selected" in data)) throw new Error("Offer unavailable");
+        setOffer(data);
+        setOfferStatus("idle");
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") setOfferStatus("error");
+      }
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [cartSignature, lastIntentMessage, acceptedOffer, cartLines]);
+
+  async function requestRoutine(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const message = assistantMessage.trim();
+    if (message.length < 3) return;
+    setRecommendationStatus("loading");
+    setLastIntentMessage(message);
+    try {
+      const response = await fetch("/api/v1/recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      });
+      const data = (await response.json()) as RecommendationResponse | { message?: string };
+      if (!response.ok || !("status" in data)) throw new Error("Recommendation unavailable");
+      setRecommendation(data);
+      setRecommendationStatus("idle");
+    } catch {
+      setRecommendationStatus("error");
+    }
+  }
+
+  function openProfile() {
+    setProfileDraft(profile);
+    setProfileMessage(null);
+    setCartOpen(false);
+    setProfileOpen(true);
+  }
+
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedProfile = normalizeCustomerProfile(profileDraft);
+    if (!normalizedProfile) {
+      setProfileMessage({ tone: "error", text: "Enter valid contact details and a complete delivery address." });
+      return;
+    }
+
+    setProfileSaveStatus("saving");
+    setProfileMessage({ tone: "info", text: "Saving your profile securely in Supabase..." });
+    try {
+      const response = await fetch("/api/v1/customer-profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(normalizedProfile),
+      });
+      const result = (await response.json()) as CustomerProfileResponse | { message?: string };
+      if (!response.ok || !("profile" in result) || !result.profile) {
+        throw new Error(result.message || "Your profile could not be saved securely.");
+      }
+      const savedProfile = customerProfileData(result.profile);
+      setProfile(savedProfile);
+      setProfileDraft(savedProfile);
+      setProfileStored(true);
+      window.localStorage.removeItem(profileStorageKey);
+      setProfileMessage({ tone: "success", text: "Profile saved in Supabase and ready for checkout." });
+    } catch (error) {
+      setProfileMessage({ tone: "error", text: (error as Error).message || "Your profile could not be saved securely." });
+    } finally {
+      setProfileSaveStatus("idle");
+    }
+  }
+
+  function addVariant(variantId: string, quantity = 1) {
+    setAcceptedOffer(null);
+    setOffer(null);
+    setExactTotalConfirmed(false);
+    setCheckoutMessage(null);
+    setCart((current) => ({ ...current, [variantId]: Math.min(10, (current[variantId] ?? 0) + quantity) }));
+    setProfileOpen(false);
+    setCartOpen(true);
+  }
+
+  function changeBundleSlide(direction: -1 | 1) {
+    if (bannerBundles.length < 2) return;
+    setActiveBundleSlide((current) => (current + direction + bannerBundles.length) % bannerBundles.length);
+  }
+
+  function viewBundle(productId: string) {
+    setActiveCategory("Bundle");
+    setShowAll(true);
+    window.setTimeout(() => {
+      document.getElementById(`product-${productId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+  }
+
+  function updateQuantity(variantId: string, nextQuantity: number) {
+    setAcceptedOffer(null);
+    setOffer(null);
+    setExactTotalConfirmed(false);
+    setCheckoutMessage(null);
+    setCart((current) => {
+      const next = { ...current };
+      if (nextQuantity <= 0) delete next[variantId];
+      else next[variantId] = Math.min(10, nextQuantity);
+      return next;
+    });
+  }
+
+  function addRoutine() {
+    if (!recommendation) return;
+    setAcceptedOffer(null);
+    setOffer(null);
+    setExactTotalConfirmed(false);
+    setCheckoutMessage(null);
+    setCart((current) => {
+      const next = { ...current };
+      for (const item of recommendation.items) {
+        next[item.variantId] = Math.min(10, (next[item.variantId] ?? 0) + 1);
+      }
+      return next;
+    });
+    setProfileOpen(false);
+    setCartOpen(true);
+  }
+
+  function acceptSelectedOffer() {
+    if (!offer) return;
+    setCart(Object.fromEntries(offer.selected.lines.map((line) => [line.variantId, line.quantity])));
+    setAcceptedOffer(offer);
+    setExactTotalConfirmed(false);
+    setOffer(null);
+  }
+
+  async function beginTestCheckout() {
+    const activeOffer = acceptedOffer ?? offer;
+    const confirmedCandidate = acceptedOffer?.selected ?? offer?.baseline;
+    if (!activeOffer || !confirmedCandidate || !exactTotalConfirmed || checkoutStatus === "preparing") return;
+    if (!profileStored || !isCompleteProfile(profile)) {
+      setProfileDraft(profile);
+      setCartOpen(false);
+      setProfileOpen(true);
+      setProfileMessage({ tone: "info", text: "Complete and save your contact and delivery details before payment." });
+      return;
+    }
+    setCheckoutStatus("preparing");
+    setCheckoutMessage("Revalidating your exact cart and total...");
+    try {
+      const confirmationResponse = await fetch("/api/v1/checkout/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          evaluatedCartLines: activeOffer.evaluatedCartLines,
+          message: lastIntentMessage,
+          expectedDecisionId: activeOffer.decisionId,
+          expectedCandidateId: confirmedCandidate.candidateId,
+          expectedTotalPaise: confirmedCandidate.totalPaise,
+          customer: profile,
+        }),
+      });
+      const confirmation = (await confirmationResponse.json()) as { paymentRecordId?: string; message?: string };
+      if (!confirmationResponse.ok || !confirmation.paymentRecordId) {
+        throw new Error(confirmation.message || "The cart could not be confirmed.");
+      }
+
+      const orderResponse = await fetch(`/api/v1/payment-records/${confirmation.paymentRecordId}/order`, { method: "POST" });
+      const order = (await orderResponse.json()) as CheckoutOrderResponse | { message?: string };
+      if (!orderResponse.ok || !("orderId" in order)) {
+        throw new Error((order as { message?: string }).message || "Test checkout could not be opened.");
+      }
+
+      await loadRazorpayCheckout();
+      if (!window.Razorpay) throw new Error("Razorpay Checkout did not load.");
+      const checkout = new window.Razorpay({
+        key: order.keyId,
+        order_id: order.orderId,
+        amount: order.amountPaise,
+        currency: order.currency,
+        timeout: 3600,
+        name: order.merchantName,
+        description: order.description,
+        prefill: {
+          name: profile.name,
+          email: profile.email,
+          contact: profile.phone,
+        },
+        handler: async (callback: RazorpayCallback) => {
+          setCheckoutStatus("waiting");
+          setCheckoutMessage("Payment response received. Verifying capture on the server...");
+          const verificationResponse = await fetch(`/api/v1/payment-records/${order.paymentRecordId}/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(callback),
+          });
+          const verification = (await verificationResponse.json()) as { message?: string };
+          if (!verificationResponse.ok) {
+            setCheckoutStatus("failure");
+            setCheckoutMessage(verification.message || "The payment response could not be verified. Fulfilment remains blocked.");
+            return;
+          }
+          await pollPaymentStatus(order.paymentRecordId);
+        },
+        modal: {
+          ondismiss: () => {
+            setCheckoutStatus("idle");
+            setCheckoutMessage("Test checkout was closed. The cart is retained and fulfilment remains blocked.");
+          },
+        },
+        theme: { color: "#20342a" },
+        notes: { payment_record_id: order.paymentRecordId },
+      });
+      checkout.open();
+      setCheckoutStatus("waiting");
+      setCheckoutMessage("Razorpay Test checkout opened. No real money will be charged.");
+    } catch (error) {
+      setCheckoutStatus("failure");
+      setCheckoutMessage((error as Error).message || "Checkout could not be started safely.");
+    }
+  }
+
+  async function pollPaymentStatus(paymentRecordId: string) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, attempt === 0 ? 700 : 1_500));
+      const response = await fetch(`/api/v1/payment-records/${paymentRecordId}`, { cache: "no-store" });
+      if (!response.ok) continue;
+      const status = (await response.json()) as {
+        state: string;
+        fulfilmentAuthorized: boolean;
+        customerMessage: string;
+      };
+      setCheckoutMessage(status.customerMessage);
+      if (status.fulfilmentAuthorized) {
+        setCheckoutStatus("success");
+        return;
+      }
+      if (status.state === "payment_failed") {
+        setCheckoutStatus("failure");
+        return;
+      }
+    }
+    setCheckoutStatus("waiting");
+    setCheckoutMessage("Payment response verified. Capture confirmation may take a moment; fulfilment remains blocked until it arrives.");
+  }
+
+  const displayedTotal = acceptedOffer?.selected.totalPaise ?? offer?.baseline.totalPaise ?? cartSubtotal;
+  const hasAdditionalOffer = offer && offer.selectedCandidateId !== offer.baselineCandidateId;
+  const activeDecision = acceptedOffer ?? offer;
+
+  return (
+    <main id="top">
+      <header className="site-header">
+        <a className="brand" href="#top" aria-label="CartPilot home">Cart<span>Pilot</span></a>
+        <nav aria-label="Store navigation">
+          <a href="#shop">Shop</a>
+          <a href="#assistant">AI routine</a>
+          <a href="#how-it-works">How it works</a>
+          <Link href="/merchant">Merchant view</Link>
+        </nav>
+        <div className="header-actions">
+          <button className="profile-button" type="button" onClick={openProfile} aria-label="Open my profile">
+            <UserRound size={17} aria-hidden="true" /> <span>Profile</span>
+          </button>
+          <button className="cart-button" type="button" onClick={() => { setProfileOpen(false); setCartOpen(true); }} aria-label={`Open cart with ${cartCount} items`}>
+            <ShoppingBag size={17} aria-hidden="true" /> Cart <span>{cartCount}</span>
+          </button>
+        </div>
+      </header>
+
+      {activeBannerBundle && activeBannerVariant && (
+        <section className="bundle-banner" aria-label="Best bundle offers" aria-roledescription="carousel">
+          <div className="bundle-banner-inner" key={activeBannerBundle.productId} aria-live="polite">
+            <div className="bundle-banner-copy">
+              <p className="bundle-banner-kicker"><Sparkles size={16} aria-hidden="true" /> Best bundle offer</p>
+              <p className="bundle-banner-count">Bundle {activeBundleSlide + 1} of {bannerBundles.length}</p>
+              <h2>{activeBannerBundle.productName}</h2>
+              <p className="bundle-banner-description">{activeBannerBundle.useCase}</p>
+              <p className="bundle-banner-proof">One complete 3-product routine · catalog-backed price</p>
+              <div className="bundle-banner-actions">
+                <strong>{formatInr(activeBannerVariant.pricePaise)}</strong>
+                <button className="button button-dark" type="button" onClick={() => addVariant(activeBannerVariant.variantId)}>
+                  Add full kit <ShoppingBag size={17} aria-hidden="true" />
+                </button>
+                <button className="button button-light" type="button" onClick={() => viewBundle(activeBannerBundle.productId)}>
+                  View bundle
+                </button>
+              </div>
+            </div>
+
+            <div className="bundle-banner-visual">
+              <span aria-hidden="true" />
+              <Image
+                src={productImages.Bundle}
+                alt={`${activeBannerBundle.productName} product packshot`}
+                fill
+                priority
+                sizes="(max-width: 900px) 82vw, 42vw"
+              />
+            </div>
+          </div>
+
+          <div className="bundle-banner-controls">
+            <button type="button" onClick={() => changeBundleSlide(-1)} aria-label="Show previous bundle offer"><ArrowLeft size={18} aria-hidden="true" /></button>
+            <div className="bundle-banner-dots" role="group" aria-label="Choose a bundle offer">
+              {bannerBundles.map((bundle, index) => (
+                <button
+                  type="button"
+                  className={activeBundleSlide === index ? "active" : ""}
+                  aria-label={`Show ${bundle.productName}`}
+                  aria-pressed={activeBundleSlide === index}
+                  key={bundle.productId}
+                  onClick={() => setActiveBundleSlide(index)}
+                ><span>{String(index + 1).padStart(2, "0")}</span></button>
+              ))}
+            </div>
+            <button type="button" onClick={() => changeBundleSlide(1)} aria-label="Show next bundle offer"><ArrowRight size={18} aria-hidden="true" /></button>
+            <button type="button" onClick={() => setBundleBannerPaused((current) => !current)} aria-label={bundleBannerPaused ? "Resume automatic bundle slides" : "Pause automatic bundle slides"}>
+              {bundleBannerPaused ? <Play size={17} aria-hidden="true" /> : <Pause size={17} aria-hidden="true" />}
+            </button>
+          </div>
+        </section>
+      )}
+
+      <section className="hero">
+        <div className="hero-copy">
+          <p className="eyebrow">Skincare made simpler</p>
+          <h1>Build a routine that fits your skin and your day.</h1>
+          <p className="hero-lede">
+            Browse reliable essentials or tell CartPilot what your skin needs. Every suggestion comes from the real merchant catalog and passes compatibility, stock, and value checks.
+          </p>
+          <div className="hero-actions">
+            <a className="button button-dark" href="#shop">Shop essentials</a>
+            <a className="button button-light" href="#assistant">Ask CartPilot</a>
+          </div>
+          <div className="trust-row" aria-label="Store promises">
+            <span>Catalog-backed</span><span>Explainable offers</span><span>Razorpay Test Mode</span>
+          </div>
+        </div>
+
+        <aside className="assistant-card" id="assistant" aria-labelledby="assistant-title">
+          <div className="assistant-heading">
+            <span className="assistant-mark" aria-hidden="true"><Sparkles size={22} /></span>
+            <div><p className="eyebrow">Shopping assistant</p><h2 id="assistant-title">What does your skin need?</h2></div>
+          </div>
+          <p>Tell me your skin type and one concern. I will suggest a short routine from products the merchant actually sells.</p>
+          <form className="assistant-form" onSubmit={requestRoutine}>
+            <label htmlFor="skin-concern">Your skin and shopping goal</label>
+            <textarea id="skin-concern" value={assistantMessage} onChange={(event) => setAssistantMessage(event.target.value)} maxLength={1000} />
+            <button type="submit" disabled={recommendationStatus === "loading"}>
+              {recommendationStatus === "loading" ? "Checking the catalog..." : "Build my routine"}
+              {recommendationStatus !== "loading" && <ArrowRight size={17} aria-hidden="true" />}
+            </button>
+          </form>
+          {recommendationStatus === "error" && <p className="inline-error" role="alert">I could not build a routine just now. The catalog is still available below.</p>}
+          <small>Demo skincare guidance only. Not medical advice.</small>
+        </aside>
+      </section>
+
+      {recommendation && (
+        <section className="routine-result" aria-live="polite">
+          <div className="routine-summary">
+            <p className="eyebrow">Your catalog-backed routine</p>
+            <h2>{recommendation.headline}</h2>
+            <p>{recommendation.clarificationQuestion ?? recommendation.summary}</p>
+            <span className="source-pill"><ShieldCheck size={15} /> {recommendation.intentSource === "gemini" ? "Gemini understood your request" : "Safe fallback used"}</span>
+          </div>
+          {recommendation.items.length > 0 && (
+            <div className="routine-items">
+              {recommendation.items.map((item, index) => (
+                <article key={item.variantId}>
+                  <span className="routine-order">{String(index + 1).padStart(2, "0")}</span>
+                  <div><small>{item.routineStep.replaceAll("_", " ")}</small><h3>{item.productName}</h3><p>{item.reason}</p></div>
+                  <strong>{formatInr(item.pricePaise)}</strong>
+                </article>
+              ))}
+              <button className="button button-dark" type="button" onClick={addRoutine}>Add the routine to cart</button>
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="shop-section" id="shop">
+        <div className="section-heading">
+          <div><p className="eyebrow">The merchant catalog</p><h2>Find your daily essentials</h2></div>
+          <p>{catalog.products.length} products · prices include all available sizes</p>
+        </div>
+        <div className="category-strip" role="group" aria-label="Filter products by category">
+          {categories.map((category) => (
+            <button type="button" className={activeCategory === category ? "active" : ""} key={category} onClick={() => { setActiveCategory(category); setShowAll(false); }}>
+              {category}
+            </button>
+          ))}
+        </div>
+        <div className="product-grid">
+          {visibleProducts.map((product) => <ProductCard product={product} elementId={`product-${product.productId}`} key={product.productId} onAdd={addVariant} />)}
+        </div>
+        {filteredProducts.length > 6 && (
+          <button className="show-more" type="button" onClick={() => setShowAll((current) => !current)}>
+            {showAll ? "Show fewer products" : `View all ${filteredProducts.length} products`} <ChevronDown size={17} className={showAll ? "rotated" : ""} />
+          </button>
+        )}
+      </section>
+
+      <section className="concern-section" id="skin-concerns">
+        <div className="section-heading concern-heading">
+          <div><p className="eyebrow">Shop by skin concern</p><h2>Start with what your skin needs.</h2></div>
+          <p>Choose a concern to see suitable matches drawn directly from the merchant catalog.</p>
+        </div>
+
+        <div className="concern-picker" role="group" aria-label="Choose a skin concern">
+          {skinConcernCollections.map((concern, index) => {
+            const productCount = productsForConcern(catalog.products, concern.concernKeys).length;
+            const isActive = concern.id === selectedSkinConcern.id;
+            return (
+              <button
+                type="button"
+                className={isActive ? "active" : ""}
+                aria-pressed={isActive}
+                key={concern.id}
+                onClick={() => setActiveSkinConcern(concern.id)}
+              >
+                <span className="concern-number">{String(index + 1).padStart(2, "0")}</span>
+                <h3>{concern.label}</h3>
+                <p>{concern.description}</p>
+                <small>{productCount} catalog {productCount === 1 ? "match" : "matches"}</small>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="concern-results" aria-live="polite">
+          <div className="concern-results-heading">
+            <div><p className="eyebrow">Selected concern</p><h3>{selectedSkinConcern.label}</h3></div>
+            <p>Showing the best {concernProducts.length} catalog {concernProducts.length === 1 ? "match" : "matches"} for this concern.</p>
+          </div>
+          <div className="product-grid concern-product-grid">
+            {concernProducts.map((product) => <ProductCard product={product} key={`${selectedSkinConcern.id}-${product.productId}`} onAdd={addVariant} />)}
+          </div>
+        </div>
+
+        <p className="concern-disclaimer">General skincare shopping guidance only. This section does not diagnose or treat a medical condition.</p>
+      </section>
+
+      <section className="how-section" id="how-it-works">
+        <p className="eyebrow">How CartPilot grows a basket</p>
+        <h2>Helpful to the shopper. Profitable for the merchant.</h2>
+        <div className="how-grid">
+          <article><span>01</span><h3>Understand</h3><p>Gemini turns the shopper&apos;s words into structured intent. It never decides prices.</p></article>
+          <article><span>02</span><h3>Validate</h3><p>The backend checks catalog fit, compatibility, inventory, customer budget, and merchant profit rules.</p></article>
+          <article><span>03</span><h3>Confirm</h3><p>The best valid choice is explained. No order is created until the shopper confirms the exact total.</p></article>
+        </div>
+      </section>
+
+      <footer>
+        <div><div className="brand">Cart<span>Pilot</span></div><p>Smarter skincare. Stronger carts.</p></div>
+        <p>Razorpay AI Buildathon demo · Test Mode only</p>
+      </footer>
+
+      {(cartOpen || profileOpen) && (
+        <button
+          className="cart-backdrop"
+          type="button"
+          aria-label="Close open panel"
+          onClick={() => { setCartOpen(false); setProfileOpen(false); }}
+        />
+      )}
+      <aside className={`cart-drawer profile-drawer ${profileOpen ? "open" : ""}`} aria-hidden={!profileOpen} aria-labelledby="profile-title">
+        <div className="cart-heading">
+          <div><p className="eyebrow">Your account</p><h2 id="profile-title">My profile</h2></div>
+          <button type="button" className="icon-button" onClick={() => setProfileOpen(false)} aria-label="Close profile"><X /></button>
+        </div>
+        <p className="profile-intro">Your contact and delivery details are required before placing an order. They prefill Test Mode checkout and are saved with an order only after you confirm payment.</p>
+        <p className={`profile-requirement ${profileStored && isCompleteProfile(profile) ? "complete" : "incomplete"}`}>
+          {profileStored && isCompleteProfile(profile) ? <Check size={16} /> : <UserRound size={16} />}
+          {profileStored && isCompleteProfile(profile) ? "Profile stored in Supabase — ready for checkout." : "Save your complete profile in Supabase before checkout."}
+        </p>
+        <form className="profile-form" onSubmit={saveProfile}>
+          <label htmlFor="profile-name">Full name
+            <input id="profile-name" name="name" autoComplete="name" required minLength={2} maxLength={80} value={profileDraft.name} onChange={(event) => setProfileDraft((current) => ({ ...current, name: event.target.value }))} />
+          </label>
+          <label htmlFor="profile-email">Email address
+            <input id="profile-email" name="email" type="email" autoComplete="email" required maxLength={120} value={profileDraft.email} onChange={(event) => setProfileDraft((current) => ({ ...current, email: event.target.value }))} />
+          </label>
+          <label htmlFor="profile-phone">Phone number
+            <input id="profile-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required pattern="(?=(?:\D*\d){8,15}\D*$)[0-9+() -]{8,20}" maxLength={20} placeholder="+91 98765 43210" value={profileDraft.phone} onChange={(event) => setProfileDraft((current) => ({ ...current, phone: event.target.value }))} />
+          </label>
+          <label htmlFor="profile-address">Delivery address
+            <textarea id="profile-address" name="address" autoComplete="street-address" required minLength={8} maxLength={300} rows={4} value={profileDraft.deliveryAddress} onChange={(event) => setProfileDraft((current) => ({ ...current, deliveryAddress: event.target.value }))} />
+          </label>
+          <button type="submit" disabled={profileSaveStatus === "saving"}><Save size={17} /> {profileSaveStatus === "saving" ? "Saving to Supabase..." : "Save profile"}</button>
+          {profileMessage && <p className={`profile-saved ${profileMessage.tone}`} role="status"><ShieldCheck size={16} /> {profileMessage.text}</p>}
+        </form>
+        <section className="payment-security" aria-labelledby="payment-security-title">
+          <LockKeyhole size={21} />
+          <div><h3 id="payment-security-title">Payment details stay with Razorpay</h3><p>CartPilot never stores card numbers, CVVs, UPI PINs, bank passwords, or OTPs. If you choose “Save this card” inside Razorpay, Razorpay handles that securely.</p></div>
+        </section>
+        <small className="device-storage-note">Your profile is stored in Supabase and linked to this browser with a secure identifier. A checkout also stores a separate order snapshot for the merchant.</small>
+      </aside>
+      <aside className={`cart-drawer ${cartOpen ? "open" : ""}`} aria-hidden={!cartOpen} aria-labelledby="cart-title">
+        <div className="cart-heading">
+          <div><p className="eyebrow">Your routine</p><h2 id="cart-title">Shopping cart</h2></div>
+          <button type="button" className="icon-button" onClick={() => setCartOpen(false)} aria-label="Close cart"><X /></button>
+        </div>
+        {cartLines.length === 0 ? (
+          <div className="empty-cart"><ShoppingBag size={34} /><h3>Your cart is empty</h3><p>Add an essential or ask CartPilot to build a routine.</p></div>
+        ) : (
+          <>
+            <div className="cart-lines">
+              {cartLines.map((line) => {
+                const item = productByVariant.get(line.variantId);
+                if (!item) return null;
+                return (
+                  <article key={line.variantId}>
+                    <div className={`cart-thumb ${productTones[item.product.productType] ?? "mint"}`}>
+                      <Image src={productImages[item.product.productType] ?? productImages.Cleanser} alt="" fill sizes="60px" />
+                    </div>
+                    <div><small>{item.product.productType} · {item.variant.size}</small><h3>{item.product.productName}</h3><strong>{formatInr(item.variant.pricePaise * line.quantity)}</strong></div>
+                    <div className="quantity-control">
+                      <button type="button" onClick={() => updateQuantity(line.variantId, line.quantity - 1)} aria-label={`Decrease ${item.product.productName}`}><Minus size={14} /></button>
+                      <span>{line.quantity}</span>
+                      <button type="button" onClick={() => updateQuantity(line.variantId, line.quantity + 1)} aria-label={`Increase ${item.product.productName}`}><Plus size={14} /></button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            {offerStatus === "loading" && <div className="offer-loading"><Sparkles size={17} /> Checking valid bundles and offers...</div>}
+            {offerStatus === "error" && <p className="offer-error">The offer check paused safely. Your cart has not changed.</p>}
+            {hasAdditionalOffer && offer && (
+              <section className="offer-card">
+                <span><Sparkles size={16} /> CartPilot found a stronger option</span>
+                <h3>{offer.explanation.headline}</h3>
+                <p>{offer.explanation.offerReason}</p>
+                <div><strong>{formatInr(offer.selected.totalPaise)}</strong>{offer.selected.savingPaise > 0 && <small>Save {formatInr(offer.selected.savingPaise)}</small>}</div>
+                <button type="button" onClick={acceptSelectedOffer}>Choose this offer</button>
+                <small>You choose. No order has been created.</small>
+              </section>
+            )}
+            {acceptedOffer && (
+              <div className="accepted-offer"><Check size={17} /><span><strong>Offer selected</strong><small>Exact total preserved for confirmation.</small></span></div>
+            )}
+
+            <div className="cart-total">
+              <div><span>Subtotal</span><span>{formatInr(cartSubtotal)}</span></div>
+              {acceptedOffer && acceptedOffer.selected.savingPaise > 0 && <div className="saving"><span>Offer saving</span><span>-{formatInr(acceptedOffer.selected.savingPaise)}</span></div>}
+              <div className="grand-total"><strong>Total</strong><strong>{formatInr(displayedTotal)}</strong></div>
+            </div>
+            <label className="checkout-confirmation">
+              <input type="checkbox" checked={exactTotalConfirmed} onChange={(event) => setExactTotalConfirmed(event.target.checked)} />
+              <span>I confirm this exact cart and total of <strong>{formatInr(displayedTotal)}</strong>.</span>
+            </label>
+            <button className="checkout-button" type="button" onClick={beginTestCheckout} disabled={!activeDecision || !exactTotalConfirmed || checkoutStatus === "preparing"}>
+              {checkoutStatus === "preparing" ? "Preparing Test checkout..." : "Pay with Razorpay Test Mode"} <ArrowRight size={18} />
+            </button>
+            {checkoutMessage && <p className={`checkout-status ${checkoutStatus}`} role="status">{checkoutMessage}</p>}
+            <p className="checkout-note"><ShieldCheck size={15} /> No real money will be charged. Unpaid checkouts time out after one hour, and fulfilment stays blocked until a signed capture event is verified.</p>
+          </>
+        )}
+      </aside>
+    </main>
+  );
+}
+
+function loadRazorpayCheckout(): Promise<void> {
+  if (window.Razorpay) return Promise.resolve();
+  const existing = document.querySelector<HTMLScriptElement>('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Razorpay Checkout could not load.")), { once: true });
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.addEventListener("load", () => resolve(), { once: true });
+    script.addEventListener("error", () => reject(new Error("Razorpay Checkout could not load.")), { once: true });
+    document.head.appendChild(script);
+  });
+}
+
+function isCompleteProfile(profile: CustomerProfileData): boolean {
+  return normalizeCustomerProfile(profile) !== null;
+}
+
+function customerProfileData(profile: SavedCustomerProfile): CustomerProfileData {
+  return {
+    name: profile.name,
+    email: profile.email,
+    phone: profile.phone,
+    deliveryAddress: profile.deliveryAddress,
+  };
+}
+
+function readLegacyProfile(): CustomerProfileData | null {
+  try {
+    const stored = window.localStorage.getItem(profileStorageKey);
+    return stored ? normalizeCustomerProfile(JSON.parse(stored)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function ProductCard({
+  product,
+  onAdd,
+  elementId,
+}: {
+  product: PublicCatalogProduct;
+  onAdd: (variantId: string) => void;
+  elementId?: string;
+}) {
+  const [selectedVariantId, setSelectedVariantId] = useState(
+    product.variants.find((variant) => variant.isDefault)?.variantId ?? product.variants[0].variantId,
+  );
+  const selected = product.variants.find((variant) => variant.variantId === selectedVariantId) ?? product.variants[0];
+  const visualVariant = Number.parseInt(product.productId.slice(-1), 10) % 3;
+
+  return (
+    <article className="product-card" id={elementId}>
+      <div className={`product-visual ${productTones[product.productType] ?? "mint"} visual-${visualVariant}`}>
+        <Image
+          src={productImages[product.productType] ?? productImages.Cleanser}
+          alt={`${product.productName} product packshot`}
+          fill
+          sizes="(max-width: 650px) 100vw, (max-width: 900px) 50vw, 33vw"
+        />
+      </div>
+      <div className="product-meta"><span>{product.productType}</span><span>{selected.size}</span></div>
+      <h3>{product.productName}</h3>
+      <p>{product.useCase}</p>
+      {product.variants.length > 1 && (
+        <label className="variant-select">Size
+          <select value={selectedVariantId} onChange={(event) => setSelectedVariantId(event.target.value)}>
+            {product.variants.map((variant) => <option key={variant.variantId} value={variant.variantId}>{variant.size} · {formatInr(variant.pricePaise)}</option>)}
+          </select>
+        </label>
+      )}
+      <div className="product-footer">
+        <strong>{formatInr(selected.pricePaise)}</strong>
+        <button type="button" disabled={!selected.inStock} onClick={() => onAdd(selected.variantId)}>{selected.inStock ? "Add to cart" : "Unavailable"}</button>
+      </div>
+    </article>
+  );
+}
+
+function productsForConcern(
+  products: PublicCatalogProduct[],
+  concernKeys: readonly string[],
+): PublicCatalogProduct[] {
+  return products
+    .filter((product) => product.supportedConcerns.some((concern) => concernKeys.includes(concern)))
+    .sort((left, right) => {
+      const matchDifference = concernMatchCount(right, concernKeys) - concernMatchCount(left, concernKeys);
+      if (matchDifference !== 0) return matchDifference;
+      const bundleDifference = Number(left.productType === "Bundle") - Number(right.productType === "Bundle");
+      if (bundleDifference !== 0) return bundleDifference;
+      return left.startingPricePaise - right.startingPricePaise || left.productName.localeCompare(right.productName);
+    });
+}
+
+function concernMatchCount(product: PublicCatalogProduct, concernKeys: readonly string[]): number {
+  return product.supportedConcerns.filter((concern) => concernKeys.includes(concern)).length;
+}

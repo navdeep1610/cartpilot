@@ -1,0 +1,178 @@
+{
+  "type": "object",
+  "description": "Shopping intent extracted only from the shopper's explicit message. This output cannot authorize offers, orders, or payments.",
+  "additionalProperties": false,
+  "properties": {
+    "customer_message_summary": {
+      "type": "string",
+      "description": "Brief factual summary without inferred medical conditions, income, or purchasing power."
+    },
+    "shopping_goal": {
+      "type": "string",
+      "enum": [
+        "find_single_product",
+        "compare_products",
+        "complete_routine",
+        "add_complementary_product",
+        "find_substitute",
+        "find_lower_price_option",
+        "request_discount",
+        "review_cart",
+        "start_checkout",
+        "unknown"
+      ]
+    },
+    "requested_items": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "product_type": {
+            "type": "string",
+            "enum": [
+              "cleanser",
+              "serum",
+              "moisturizer",
+              "sunscreen",
+              "toner",
+              "exfoliant",
+              "acne_treatment",
+              "mask",
+              "eye_care",
+              "lip_care",
+              "bundle",
+              "unknown"
+            ]
+          },
+          "matched_catalog_product_ids": {
+            "type": "array",
+            "minItems": 0,
+            "maxItems": 5,
+            "items": { "type": "string" }
+          }
+        },
+        "required": ["product_type", "matched_catalog_product_ids"]
+      }
+    },
+    "skin_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skin_types": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "enum": ["normal", "dry", "oily", "combination", "sensitive", "unknown"]
+          }
+        },
+        "concerns": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 6,
+          "items": {
+            "type": "string",
+            "enum": [
+              "daily_cleansing",
+              "dryness",
+              "dehydration",
+              "sensitivity",
+              "redness",
+              "excess_oil",
+              "acne_prone",
+              "clogged_pores",
+              "blackheads",
+              "visible_pores",
+              "dullness",
+              "uneven_tone",
+              "dark_spots_appearance",
+              "uneven_texture",
+              "fine_lines",
+              "firmness_appearance",
+              "barrier_support",
+              "sun_protection",
+              "tired_under_eye_appearance",
+              "under_eye_hydration",
+              "dry_lips",
+              "unknown"
+            ]
+          }
+        }
+      },
+      "required": ["skin_types", "concerns"]
+    },
+    "shopping_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "avoid_strong_actives": { "type": "boolean" },
+        "product_type_exclusions": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 11,
+          "items": { "type": "string" }
+        },
+        "ingredient_exclusions": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 20,
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["avoid_strong_actives", "product_type_exclusions", "ingredient_exclusions"]
+    },
+    "price_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "signal": {
+          "type": "string",
+          "enum": [
+            "none",
+            "explicit_budget",
+            "explicit_price_objection",
+            "explicit_discount_request",
+            "explicit_lower_price_request"
+          ]
+        },
+        "budget_inr": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "maximum": 100000
+        }
+      },
+      "required": ["signal", "budget_inr"]
+    },
+    "safety_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "needs_professional_guidance": { "type": "boolean" }
+      },
+      "required": ["needs_professional_guidance"]
+    },
+    "clarification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "boolean" },
+        "question": { "type": ["string", "null"] }
+      },
+      "required": ["required", "question"]
+    }
+  },
+  "required": [
+    "customer_message_summary",
+    "shopping_goal",
+    "requested_items",
+    "skin_profile",
+    "shopping_constraints",
+    "price_context",
+    "safety_context",
+    "clarification"
+  ]
+}
