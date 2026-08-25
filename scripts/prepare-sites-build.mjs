@@ -16,11 +16,11 @@ await rm(distRoot, { recursive: true, force: true });
 await mkdir(serverRoot, { recursive: true });
 
 // Preserve OpenNext's relative imports while exposing the entrypoint expected by Sites.
-await cp(openNextRoot, serverRoot, { recursive: true });
+await cp(openNextRoot, serverRoot, { recursive: true, dereference: true });
 await cp(resolve(openNextRoot, "worker.js"), resolve(serverRoot, "index.js"));
 
 try {
-  await cp(resolve(openNextRoot, "assets"), clientRoot, { recursive: true });
+  await cp(resolve(openNextRoot, "assets"), clientRoot, { recursive: true, dereference: true });
 } catch (error) {
   if (error?.code !== "ENOENT") throw error;
 }
