@@ -1,4 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import Razorpay from "razorpay";
+
+let cachedClient: Razorpay | null = null;
 
 export class PaymentConfigurationError extends Error {
   constructor(message = "Razorpay Test Mode configuration is unavailable") {
@@ -21,19 +24,17 @@ export async function createRazorpayTestOrder(input: {
     throw new Error("Invalid Razorpay order amount");
   }
   if (input.receipt.length > 40) throw new Error("Razorpay receipt exceeds 40 characters");
-  return razorpayRequest<RazorpayOrderResponse>("/orders", {
-    method: "POST",
-    body: JSON.stringify({
-      amount: input.amountPaise,
-      currency: "INR",
-      receipt: input.receipt,
-      partial_payment: false,
-      notes: {
-        payment_record_id: input.paymentRecordId,
-        decision_id: input.decisionId,
-        environment: "test",
-      },
-    }),
+  const client = getRazorpayClient();
+  return client.orders.create({
+    amount: input.amountPaise,
+    currency: "INR",
+    receipt: input.receipt,
+    partial_payment: false,
+    notes: {
+      payment_record_id: input.paymentRecordId,
+      decision_id: input.decisionId,
+      environment: "test",
+    },
   });
 }
 
@@ -63,9 +64,10 @@ export async function fetchRazorpayTestPaymentEvidence(input: {
   if (!/^pay_[A-Za-z0-9]+$/.test(input.paymentId) || !/^order_[A-Za-z0-9]+$/.test(input.orderId)) {
     throw new Error("Invalid Razorpay payment references");
   }
+  const client = getRazorpayClient();
   const [payment, order] = await Promise.all([
-    razorpayRequest<RazorpayPaymentResponse>(`/payments/${encodeURIComponent(input.paymentId)}`),
-    razorpayRequest<RazorpayOrderResponse>(`/orders/${encodeURIComponent(input.orderId)}`),
+    client.payments.fetch(input.paymentId),
+    client.orders.fetch(input.orderId),
   ]);
 
   return {
@@ -107,6 +109,13 @@ export function verifyRazorpayWebhook(rawBody: string, signature: string): boole
   return safeEqual(expected, signature);
 }
 
+function getRazorpayClient(): Razorpay {
+  if (cachedClient) return cachedClient;
+  const { keyId, keySecret } = getRazorpayCredentials();
+  cachedClient = new Razorpay({ key_id: keyId, key_secret: keySecret });
+  return cachedClient;
+}
+
 function getRazorpayCredentials(): { keyId: string; keySecret: string } {
   const keyId = process.env.RAZORPAY_KEY_ID?.trim();
   const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
@@ -114,44 +123,6 @@ function getRazorpayCredentials(): { keyId: string; keySecret: string } {
     throw new PaymentConfigurationError();
   }
   return { keyId, keySecret };
-}
-
-interface RazorpayOrderResponse {
-  id: string;
-  amount: number | string;
-  amount_paid: number | string;
-  amount_due: number | string;
-  currency: string;
-  status: "created" | "attempted" | "paid";
-  receipt?: string | null;
-}
-
-interface RazorpayPaymentResponse {
-  id: string;
-  order_id: string;
-  amount: number | string;
-  currency: string;
-  status: "created" | "authorized" | "captured" | "refunded" | "failed";
-  captured: boolean;
-}
-
-async function razorpayRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const { keyId, keySecret } = getRazorpayCredentials();
-  const authorization = Buffer.from(`${keyId}:${keySecret}`, "utf8").toString("base64");
-  const response = await fetch(`https://api.razorpay.com/v1${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      Authorization: `Basic ${authorization}`,
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-  });
-  if (!response.ok) {
-    const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 300);
-    throw new Error(`Razorpay request failed (${response.status}): ${detail}`);
-  }
-  return (await response.json()) as T;
 }
 
 function safeEqual(expected: string, actual: string): boolean {

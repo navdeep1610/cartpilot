@@ -1,3 +1,5 @@
+import { GoogleGenAI } from "@google/genai";
+import Ajv2020 from "ajv/dist/2020.js";
 import geminiIntentSchema from "../../../schemas/gemini_intent_schema.json" with { type: "json" };
 import type { CatalogSnapshot } from "@/domain/catalog/types";
 import { extractFallbackIntent } from "@/domain/intent/fallback-intent";
@@ -22,25 +24,8 @@ interface StructuredIntent {
   clarification: { required: boolean; question: string | null };
 }
 
-const shoppingGoals = new Set<NormalizedCustomerIntent["shoppingGoal"]>([
-  "find_single_product",
-  "compare_products",
-  "complete_routine",
-  "add_complementary_product",
-  "find_substitute",
-  "find_lower_price_option",
-  "request_discount",
-  "review_cart",
-  "start_checkout",
-  "unknown",
-]);
-const priceSignals = new Set<PriceSignal>([
-  "none",
-  "explicit_budget",
-  "explicit_price_objection",
-  "explicit_discount_request",
-  "explicit_lower_price_request",
-]);
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+const validateStructuredIntent = ajv.compile(geminiIntentSchema);
 
 export async function extractCustomerIntent(
   message: string,
@@ -55,20 +40,27 @@ export async function extractCustomerIntent(
       .filter((product) => product.status === "active")
       .map((product) => `${product.productId}: ${product.productName} (${product.productType})`)
       .join("\n");
-    const prompt = [
-      "Extract only explicitly stated shopping intent. Do not diagnose, invent skin conditions, infer income, choose discounts, or authorize a purchase.",
-      "Use only product IDs from this public catalog when a direct match is clear:",
-      catalogNames,
-      `Shopper message: ${message}`,
-    ].join("\n\n");
-    const responseText = await requestGeminiIntent(
-      apiKey,
-      process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
-      prompt,
-    );
-    const parsed: unknown = JSON.parse(responseText);
-    if (!isStructuredIntent(parsed)) {
-      console.warn("[CartPilot Gemini] Structured intent failed local validation.");
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
+      contents: [
+        "Extract only explicitly stated shopping intent. Do not diagnose, invent skin conditions, infer income, choose discounts, or authorize a purchase.",
+        "Use only product IDs from this public catalog when a direct match is clear:",
+        catalogNames,
+        `Shopper message: ${message}`,
+      ].join("\n\n"),
+      config: {
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseJsonSchema: geminiIntentSchema,
+      },
+    });
+    const parsed = JSON.parse(response.text ?? "null") as StructuredIntent;
+    if (!validateStructuredIntent(parsed)) {
+      const issues = validateStructuredIntent.errors
+        ?.map(({ instancePath, keyword }) => `${instancePath || "/"}:${keyword}`)
+        .join(",");
+      console.warn(`[CartPilot Gemini] Structured intent failed local validation. issues=${issues || "unknown"}`);
       return fallback;
     }
     return normalizeStructuredIntent(parsed, snapshot);
@@ -81,89 +73,6 @@ export async function extractCustomerIntent(
     );
     return fallback;
   }
-}
-
-async function requestGeminiIntent(apiKey: string, model: string, prompt: string): Promise<string> {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseJsonSchema: geminiIntentSchema,
-      },
-    }),
-  });
-  if (!response.ok) {
-    const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 300);
-    throw new GeminiRequestError(response.status, `Gemini request failed: ${detail}`);
-  }
-  const payload = (await response.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim();
-  if (!text) throw new GeminiRequestError(502, "Gemini returned no structured content");
-  return text;
-}
-
-class GeminiRequestError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-    this.name = "GeminiRequestError";
-  }
-}
-
-function isStructuredIntent(value: unknown): value is StructuredIntent {
-  if (!isRecord(value)) return false;
-  const profile = value.skin_profile;
-  const constraints = value.shopping_constraints;
-  const price = value.price_context;
-  const safety = value.safety_context;
-  const clarification = value.clarification;
-  return (
-    typeof value.customer_message_summary === "string" &&
-    typeof value.shopping_goal === "string" &&
-    shoppingGoals.has(value.shopping_goal as NormalizedCustomerIntent["shoppingGoal"]) &&
-    Array.isArray(value.requested_items) &&
-    value.requested_items.length <= 8 &&
-    value.requested_items.every(
-      (item) =>
-        isRecord(item) &&
-        typeof item.product_type === "string" &&
-        isStringArray(item.matched_catalog_product_ids, 5),
-    ) &&
-    isRecord(profile) &&
-    isStringArray(profile.skin_types, 2) &&
-    isStringArray(profile.concerns, 6) &&
-    isRecord(constraints) &&
-    typeof constraints.avoid_strong_actives === "boolean" &&
-    isStringArray(constraints.product_type_exclusions, 11) &&
-    isStringArray(constraints.ingredient_exclusions, 20) &&
-    isRecord(price) &&
-    typeof price.signal === "string" &&
-    priceSignals.has(price.signal as PriceSignal) &&
-    (price.budget_inr === null ||
-      (typeof price.budget_inr === "number" &&
-        Number.isInteger(price.budget_inr) &&
-        price.budget_inr >= 1 &&
-        price.budget_inr <= 100000)) &&
-    isRecord(safety) &&
-    typeof safety.needs_professional_guidance === "boolean" &&
-    isRecord(clarification) &&
-    typeof clarification.required === "boolean" &&
-    (clarification.question === null || typeof clarification.question === "string")
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isStringArray(value: unknown, maxLength: number): value is string[] {
-  return Array.isArray(value) && value.length <= maxLength && value.every((item) => typeof item === "string");
 }
 
 function getProviderStatus(error: unknown): number | null {
