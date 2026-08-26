@@ -1,4 +1,5 @@
 import type { MerchantCustomer, MerchantCustomersResponse } from "@/domain/customers/merchant-customer";
+import { guardMerchantApi } from "@/server/auth/merchant-authorization";
 import {
   DatabaseConfigurationError,
   getSupabaseAdmin,
@@ -23,15 +24,8 @@ interface CustomerOrderSummary {
 }
 
 export async function GET() {
-  if (process.env.NODE_ENV === "production") {
-    return Response.json(
-      {
-        error: "MERCHANT_AUTH_REQUIRED",
-        message: "Customer data stays disabled online until merchant authentication is configured.",
-      },
-      { status: 403, headers: noStoreHeaders() },
-    );
-  }
+  const authError = await guardMerchantApi();
+  if (authError) return authError;
 
   try {
     const admin = getSupabaseAdmin();

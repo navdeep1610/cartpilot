@@ -1,29 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { MerchantOrders } from "@/components/merchant/merchant-orders";
+import { MerchantSidebar } from "@/components/merchant/merchant-sidebar";
+import { requireMerchantPage } from "@/server/auth/merchant-authorization";
 
 export const metadata: Metadata = {
   title: "Merchant order center",
   description: "Supabase-backed customer orders and Razorpay Test Mode payment evidence.",
 };
 
-export default function MerchantPage() {
+export const dynamic = "force-dynamic";
+
+export default async function MerchantPage() {
+  const merchant = await requireMerchantPage("/merchant");
+
   return (
     <main className="merchant-shell">
-      <aside className="merchant-nav">
-        <div className="brand brand-light">Cart<span>Pilot</span></div>
-        <p>Merchant order center</p>
-        <nav aria-label="Merchant dashboard sections">
-          <a className="active" href="#orders">Orders</a>
-          <Link href="/merchant/customers">Registered customers</Link>
-          <Link href="/merchant/payment-safety">Payment safety</Link>
-        </nav>
-        <div className="merchant-nav-footer">
-          <span>Demo environment</span>
-          <Link href="/"><ArrowLeft size={16} /> Customer store</Link>
-        </div>
-      </aside>
+      <MerchantSidebar active="orders" label="Merchant order center" merchantEmail={merchant.email} />
 
       <div className="merchant-content">
         <header className="merchant-header" id="overview">

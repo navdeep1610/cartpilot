@@ -5,6 +5,7 @@ import {
   getSupabaseAdmin,
   type StoredPaymentRecord,
 } from "@/server/database/supabase-admin";
+import { guardMerchantApi } from "@/server/auth/merchant-authorization";
 import {
   fetchRazorpayTestPaymentEvidence,
   PaymentConfigurationError,
@@ -17,12 +18,8 @@ export async function POST(
   _request: Request,
   context: { params: Promise<{ recordId: string }> },
 ) {
-  if (process.env.NODE_ENV === "production") {
-    return safeResponse(
-      { error: "MERCHANT_AUTH_REQUIRED", message: "Merchant payment actions stay disabled online until authentication is configured." },
-      403,
-    );
-  }
+  const authError = await guardMerchantApi();
+  if (authError) return authError;
 
   const { recordId } = await context.params;
   if (!/^PAYREC-[A-Z0-9-]{8,80}$/.test(recordId)) {

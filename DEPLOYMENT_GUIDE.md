@@ -13,6 +13,8 @@ In the Supabase project dashboard, open **Project Settings → API**.
 - Copy **Project URL** into `NEXT_PUBLIC_SUPABASE_URL`.
 - Copy the **publishable key** into `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 - Copy the **service_role key** into `SUPABASE_SERVICE_ROLE_KEY`. This key is private and server-only.
+- In **Authentication → Users**, create the one email-and-password account that will own the merchant portal.
+- Copy that account's exact email into `MERCHANT_EMAIL`. Only this authenticated email can read merchant customer and order APIs.
 
 ### Gemini
 
@@ -60,6 +62,8 @@ After saving `.env.local`, restart CartPilot and test this journey:
 
 Do not upload `.env.local`; Vercel stores the same values securely in its own settings.
 
+After deployment, opening `/merchant` redirects signed-out visitors to `/merchant/login`. Sign in with the Supabase Auth user whose email matches `MERCHANT_EMAIL`.
+
 ## 5. Connect the stable Razorpay webhook
 
 After the first production deployment, add this URL in the Razorpay Test Mode webhook settings:
@@ -84,3 +88,4 @@ Use the same webhook secret stored in `RAZORPAY_WEBHOOK_SECRET`. Do not use a te
 - A signed capture webhook and matching amount/order evidence are required for fulfilment.
 - Failed payments retain the cart and keep fulfilment blocked.
 - Merchant economics and secret keys are never returned by customer APIs.
+- Merchant pages, customer records, order APIs and payment reconciliation require a verified Supabase Auth session for the configured `MERCHANT_EMAIL`.

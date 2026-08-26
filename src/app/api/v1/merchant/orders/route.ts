@@ -1,4 +1,5 @@
 import type { MerchantOrdersResponse } from "@/domain/orders/merchant-order";
+import { guardMerchantApi } from "@/server/auth/merchant-authorization";
 import { getCatalogSnapshot } from "@/server/catalog/file-catalog-repository";
 import {
   DatabaseConfigurationError,
@@ -14,15 +15,8 @@ import { expireStaleUnpaidPaymentRecords } from "@/server/payments/payment-timeo
 export const runtime = "nodejs";
 
 export async function GET() {
-  if (process.env.NODE_ENV === "production") {
-    return Response.json(
-      {
-        error: "MERCHANT_AUTH_REQUIRED",
-        message: "Merchant order data stays disabled online until merchant authentication is configured.",
-      },
-      { status: 403, headers: noStoreHeaders() },
-    );
-  }
+  const authError = await guardMerchantApi();
+  if (authError) return authError;
 
   try {
     await expireStaleUnpaidPaymentRecords();

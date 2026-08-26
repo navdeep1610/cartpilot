@@ -158,7 +158,7 @@ export function MerchantCustomers() {
         </div>
       )}
 
-      <p className="customer-privacy-note">Payment credentials are excluded. Before a live launch, merchant authentication must protect this portal.</p>
+      <p className="customer-privacy-note">Payment credentials are excluded. This directory is available only to the authenticated merchant.</p>
     </section>
   );
 }

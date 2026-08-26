@@ -1,29 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { MerchantCustomers } from "@/components/merchant/merchant-customers";
+import { MerchantSidebar } from "@/components/merchant/merchant-sidebar";
+import { requireMerchantPage } from "@/server/auth/merchant-authorization";
 
 export const metadata: Metadata = {
   title: "Registered customers · CartPilot",
   description: "Supabase-backed customer profiles for the CartPilot merchant demo.",
 };
 
-export default function MerchantCustomersPage() {
+export const dynamic = "force-dynamic";
+
+export default async function MerchantCustomersPage() {
+  const merchant = await requireMerchantPage("/merchant/customers");
+
   return (
     <main className="merchant-shell">
-      <aside className="merchant-nav">
-        <div className="brand brand-light">Cart<span>Pilot</span></div>
-        <p>Merchant customer center</p>
-        <nav aria-label="Merchant dashboard sections">
-          <Link href="/merchant#orders">Orders</Link>
-          <Link className="active" href="/merchant/customers" aria-current="page">Registered customers</Link>
-          <Link href="/merchant/payment-safety">Payment safety</Link>
-        </nav>
-        <div className="merchant-nav-footer">
-          <span>Demo environment</span>
-          <Link href="/"><ArrowLeft size={16} /> Customer store</Link>
-        </div>
-      </aside>
+      <MerchantSidebar active="customers" label="Merchant customer center" merchantEmail={merchant.email} />
 
       <div className="merchant-content">
         <header className="merchant-header">
