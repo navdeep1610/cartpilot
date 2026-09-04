@@ -1,10 +1,10 @@
 # CartPilot — Product and Build Plan
 
-Status: Baseline application implemented; Phase 3 atomic payment and webhook reliability completed on 4 September 2026. Complete audit chaining is next.
+Status: Baseline application implemented; Phase 4 complete audit trail implemented locally on 5 September 2026. Failure and retry demonstration is next.
 
 Original planning date: 24 August 2026
 
-Latest status review: 4 September 2026
+Latest status review: 5 September 2026
 
 ## 1. Project decision
 

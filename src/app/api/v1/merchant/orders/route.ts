@@ -30,22 +30,33 @@ export async function GET() {
     if (recordError) throw recordError;
 
     const records = (recordData ?? []) as StoredPaymentRecord[];
-    const recordIds = records.map((record) => record.payment_record_id);
+    const traceIds = records.map((record) => record.trace_id);
     let auditEvents: StoredAuditEvent[] = [];
-    if (recordIds.length > 0) {
+    if (traceIds.length > 0) {
       const { data: auditData, error: auditError } = await admin
         .from("audit_events")
-        .select("audit_event_id,trace_id,event_type,outcome,reason_code,created_at")
-        .in("trace_id", recordIds)
-        .order("created_at", { ascending: true })
+        .select("audit_event_id,trace_id,sequence_number,event_type,outcome,reason_code,created_at,schema_version,idempotency_key,previous_event_hash,payload_hash,event_hash,canonical_payload,event_payload")
+        .in("trace_id", traceIds)
+        .order("sequence_number", { ascending: true })
         .limit(1_000);
       if (auditError) throw auditError;
       auditEvents = (auditData ?? []) as StoredAuditEvent[];
     }
 
+    const decisionIds = [...new Set(records.map((record) => record.decision_id))];
+    const decisions = new Map<string, unknown>();
+    if (decisionIds.length > 0) {
+      const { data: decisionData, error: decisionError } = await admin
+        .from("offer_decisions")
+        .select("decision_id,decision_payload")
+        .in("decision_id", decisionIds);
+      if (decisionError) throw decisionError;
+      for (const row of decisionData ?? []) decisions.set(row.decision_id as string, row.decision_payload);
+    }
+
     const catalog = await getCatalogSnapshot();
     const response: MerchantOrdersResponse = {
-      orders: records.map((record) => toMerchantOrder(record, auditEvents, catalog)),
+      orders: records.map((record) => toMerchantOrder(record, auditEvents, catalog, decisions.get(record.decision_id))),
       generatedAt: new Date().toISOString(),
       storage: "supabase",
       testMode: true,

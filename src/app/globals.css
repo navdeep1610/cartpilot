@@ -1113,6 +1113,18 @@ button:disabled {
 .order-audit li strong, .order-audit li small { display: block; }
 .order-audit li strong { font-size: .76rem; }
 .order-audit li small { margin-top: 3px; color: var(--muted); font-size: .65rem; }
+.audit-export-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #cad8cf; border-radius: 999px; padding: 7px 11px; background: #fff; color: var(--forest); font-size: .68rem; font-weight: 800; }
+.audit-export-button:disabled { cursor: not-allowed; opacity: .55; }
+.audit-integrity-card { display: grid; gap: 4px; margin-top: 12px; padding: 12px 14px; border: 1px solid #c9dfcf; border-radius: 12px; background: #eff8f1; }
+.audit-integrity-card.broken { border-color: #e7b8ae; background: #fff1ee; }
+.audit-integrity-card.legacy { border-color: #ded7ca; background: #f8f5ee; }
+.audit-integrity-card strong { font-size: .76rem; }
+.audit-integrity-card small, .audit-integrity-card code { color: var(--muted); font-size: .64rem; overflow-wrap: anywhere; }
+.audit-decision-evidence { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.audit-decision-evidence span { padding: 10px; border-radius: 10px; background: #faf8f2; }
+.audit-decision-evidence small, .audit-decision-evidence strong { display: block; }
+.audit-decision-evidence small { color: var(--muted); font-size: .61rem; }
+.audit-decision-evidence strong { margin-top: 4px; font-size: .68rem; overflow-wrap: anywhere; }
 
 .audit-section { margin-top: 68px; scroll-margin-top: 24px; }
 .payment-safety-section { margin-top: 30px; }

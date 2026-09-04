@@ -1,10 +1,10 @@
 # CartPilot Hackathon Requirement Matrix
 
-Status date: 4 September 2026
+Status date: 5 September 2026
 
 Track: 01 — AI Growth & Agentic Commerce
 
-Current upgrade phase: Phase 2 — commercial-policy correctness completed
+Current upgrade phase: Phase 4 — complete audit trail implemented locally
 
 ## Official brief translated into acceptance criteria
 
@@ -28,11 +28,11 @@ Primary business measure: estimated contribution-profit uplift per shopping sess
 | Requirement | Current status | Evidence today | Release gate |
 |---|---|---|---|
 | Track 01 revenue-growth route | Implemented | Routine completion, bundles, cross-sells, discounts and Razorpay Test Mode are present | Publish reproducible uplift results |
-| Explainable | Partial | Customer offer reasons and merchant reason codes exist | Show every candidate, calculation, gate and rejection in merchant audit |
+| Explainable | Implemented | The merchant trace includes decision evidence, candidate counts, economics, versions, reason codes and event envelopes | Preserve during failure-demo work |
 | Bounded | Implemented | Runtime-validated catalog snapshots, fail-closed compatibility, component inventory, exclusions, discount guards, relevance, cross-sell limits and profit floors are enforced | Preserve with end-to-end regression coverage |
 | Customer-gated | Implemented | Exact revalidated cart and total are required before order creation | Add end-to-end regression coverage |
 | Payment-gated | Implemented | Transactional payment claims and transitions require matching captured-payment plus paid-order evidence | Preserve with end-to-end Razorpay Test Mode evidence |
-| Audit trail | Partial | Confirmed checkouts and payment events are stored | Record the complete intent-to-fulfilment chain with append-only integrity |
+| Audit trail | Implemented locally | Schema envelopes, atomic sequence allocation, payload hashes, linked event hashes, immutability and merchant JSON export are implemented | Apply migration `0004_complete_audit_trail.sql` before deployment |
 | Graceful failure | Partial | Gemini fallback, safe API errors, retained cart and blocked fulfilment exist | Demonstrate Razorpay failure, explicit safe retry and zero duplicate fulfilment |
 | Merchant growth evidence | Not yet complete | Profit calculations exist in the engine | Run and publish all 35 evaluation scenarios and aggregate metrics |
 | Reviewer-ready deployment | Not yet complete | Local production build succeeds | Stable deployment, configured webhook, README, CI and five-minute demo |
@@ -80,9 +80,22 @@ Atomic payment and webhook reliability completed before expanding the audit syst
 
 Phase 3 exit criterion: a repeated customer mutation or webhook cannot create a second order, downgrade captured money state, or authorize fulfilment twice.
 
-## Next release gate: Phase 4
+## Phase 4 deliverables
 
-The complete intent-to-fulfilment audit trail comes next: every material decision and money event must validate against the audit schema, carry an atomic sequence and tamper-evident hash chain, and be reconstructable in the merchant view.
+- [x] Give each payment record a stable `TRACE-*` identifier.
+- [x] Seed intent, catalog, candidate, offer, cart and confirmation events in the confirmation transaction.
+- [x] Map order, callback, payment, webhook, fulfilment and safe-failure events to the declared audit schema.
+- [x] Allocate trace sequences under a transaction-scoped lock.
+- [x] Link canonical payload hashes into a tamper-evident SHA-256 chain.
+- [x] Reject updates and deletes from the audit table.
+- [x] Verify the schema and chain independently in the server application.
+- [x] Show integrity, decision evidence and hashes to the merchant and support sanitized JSON export.
+
+Phase 4 exit criterion: a merchant can reconstruct a new checkout trace and detect any sequence, payload, envelope or parent-hash alteration.
+
+## Next release gate: Phase 5
+
+Build the reviewer-visible failed-payment and safe-retry demonstration, including retained cart evidence and proof that retry or late events cannot duplicate fulfilment.
 
 ## Submission definition of done
 

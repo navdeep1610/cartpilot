@@ -24,6 +24,7 @@ export function getSupabaseAdmin(): SupabaseClient {
 
 export interface StoredPaymentRecord {
   payment_record_id: string;
+  trace_id: string;
   internal_order_id: string;
   decision_id: string;
   session_id: string;
@@ -59,35 +60,4 @@ export async function findPaymentRecord(paymentRecordId: string, sessionId?: str
   const { data, error } = await query.maybeSingle();
   if (error) throw error;
   return data as StoredPaymentRecord | null;
-}
-
-export async function appendAuditEvent(input: {
-  traceId: string;
-  eventType: string;
-  actorType: string;
-  outcome: string;
-  reasonCode: string;
-  resourceId: string;
-  evidence?: Record<string, unknown>;
-}): Promise<void> {
-  const admin = getSupabaseAdmin();
-  const { count, error: countError } = await admin
-    .from("audit_events")
-    .select("audit_event_id", { count: "exact", head: true })
-    .eq("trace_id", input.traceId);
-  if (countError) throw countError;
-  const auditEventId = `AUD-${crypto.randomUUID().toUpperCase()}`;
-  const { error } = await admin.from("audit_events").insert({
-    audit_event_id: auditEventId,
-    trace_id: input.traceId,
-    sequence_number: (count ?? 0) + 1,
-    event_type: input.eventType,
-    actor_type: input.actorType,
-    outcome: input.outcome,
-    reason_code: input.reasonCode,
-    resource_type: "payment_record",
-    resource_id: input.resourceId,
-    evidence: input.evidence ?? {},
-  });
-  if (error) throw error;
 }

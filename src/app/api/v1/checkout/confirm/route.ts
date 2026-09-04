@@ -17,7 +17,7 @@ import {
   shoppingSessionCookie,
 } from "@/server/session/shopping-session";
 import { getCustomerProfileId } from "@/server/session/customer-profile-session";
-import { assertOfferDecisionSchema } from "@/server/offers/validate-offer-decision";
+import { assertOfferDecisionSchema, toOfferDecisionSchema } from "@/server/offers/validate-offer-decision";
 import { guardCustomerMutation, MutationRequestError } from "@/server/security/mutation-request";
 
 export const runtime = "nodejs";
@@ -137,6 +137,8 @@ export async function POST(request: Request) {
       p_confirmed_cart: confirmedCart,
       p_decision_payload: {
         ...decision,
+        validatedIntent: intent,
+        auditDecision: toOfferDecisionSchema(snapshot, decision, intent, responseSessionId),
         customerConfirmedCandidateId: confirmedCandidate.candidateId,
         customerAcceptedEngineOffer: confirmedCandidate.candidateId === decision.selectedCandidateId,
       },

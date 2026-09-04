@@ -35,11 +35,19 @@ describe("toMerchantOrder", () => {
     });
     const audit: StoredAuditEvent = {
       audit_event_id: "AUD-TEST-12345678",
-      trace_id: record.payment_record_id,
+      trace_id: record.trace_id,
       event_type: "payment.webhook_applied",
       outcome: "success",
       reason_code: "CAPTURE_AND_ORDER_RECONCILED",
       created_at: "2026-08-25T09:05:00.000Z",
+      sequence_number: null,
+      schema_version: null,
+      idempotency_key: null,
+      previous_event_hash: null,
+      payload_hash: null,
+      event_hash: null,
+      canonical_payload: null,
+      event_payload: null,
     };
 
     const order = toMerchantOrder(record, [audit]);
@@ -91,6 +99,7 @@ describe("toMerchantOrder", () => {
 function paymentRecord(overrides: Partial<StoredPaymentRecord>): StoredPaymentRecord {
   return {
     payment_record_id: "PAYREC-TEST-12345678",
+    trace_id: "TRACE-TEST-12345678",
     internal_order_id: "ORD-TEST-12345678",
     decision_id: "DECISION-TEST",
     session_id: "SESSION-TEST-12345678",

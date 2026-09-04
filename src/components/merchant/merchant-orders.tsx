@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  Download,
   MapPin,
   Package,
   RefreshCw,
@@ -190,6 +191,7 @@ function OrderDetail({
   onReconciled: () => Promise<void>;
 }) {
   const [recheckState, setRecheckState] = useState<"idle" | "checking">("idle");
+  const [exportingAudit, setExportingAudit] = useState(false);
   const [recheckResult, setRecheckResult] = useState<{ tone: "info" | "success" | "error"; message: string } | null>(null);
   const canRecheck = order.paymentStatus === "verifying" && Boolean(order.razorpayPaymentId);
 
@@ -218,6 +220,26 @@ function OrderDetail({
       });
     } finally {
       setRecheckState("idle");
+    }
+  }
+
+  async function exportAudit() {
+    if (exportingAudit) return;
+    setExportingAudit(true);
+    try {
+      const response = await fetch(`/api/v1/merchant/audit/${encodeURIComponent(order.traceId)}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Audit export is unavailable.");
+      const payload = await response.text();
+      const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${order.traceId}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setRecheckResult({ tone: "error", message: (error as Error).message });
+    } finally {
+      setExportingAudit(false);
     }
   }
 
@@ -261,9 +283,30 @@ function OrderDetail({
       </section>
 
       <section className="order-audit">
-        <div className="order-subheading"><h4>Audit history</h4><small>{order.auditEvents.length} recorded event{order.auditEvents.length === 1 ? "" : "s"}</small></div>
+        <div className="order-subheading">
+          <div>
+            <h4>Complete audit trail</h4>
+            <small>{order.auditIntegrity.status === "verified" ? "Cryptographic chain verified" : order.auditIntegrity.status === "broken" ? "Integrity check failed" : "Legacy trace — hashes unavailable"} · {order.auditEvents.length} event{order.auditEvents.length === 1 ? "" : "s"}</small>
+          </div>
+          <button className="audit-export-button" type="button" onClick={() => void exportAudit()} disabled={exportingAudit || order.auditIntegrity.status === "legacy"}>
+            <Download size={14} /> {exportingAudit ? "Exporting..." : "Export JSON"}
+          </button>
+        </div>
+        <div className={`audit-integrity-card ${order.auditIntegrity.status}`}>
+          <strong>{order.auditIntegrity.status === "verified" ? "Verified append-only chain" : order.auditIntegrity.status === "broken" ? "Audit chain needs review" : "Earlier order"}</strong>
+          <small>Trace {order.traceId}</small>
+          {order.auditIntegrity.headHash && <code>Head {shortHash(order.auditIntegrity.headHash)}</code>}
+          {order.auditIntegrity.issues.map((issue) => <small key={issue}>{issue}</small>)}
+        </div>
+        {order.decisionEvidence && (
+          <div className="audit-decision-evidence">
+            <span><small>Candidates</small><strong>{order.decisionEvidence.evaluatedCandidates} evaluated · {order.decisionEvidence.rejectedCandidates} rejected</strong></span>
+            <span><small>Selected profit</small><strong>{order.decisionEvidence.selectedContributionProfitPaise === null ? "Unavailable" : formatInr(order.decisionEvidence.selectedContributionProfitPaise)}</strong></span>
+            <span><small>Versions</small><strong>{order.decisionEvidence.catalogVersion ?? "Catalog unavailable"} · {order.decisionEvidence.policyVersion ?? "Policy unavailable"}</strong></span>
+          </div>
+        )}
         {order.auditEvents.length === 0 ? <p>No audit events were found for this earlier test order.</p> : (
-          <ol>{order.auditEvents.map((event) => <li key={event.id}><span className={event.outcome === "failure" ? "failed" : ""} /><div><strong>{humanize(event.eventType)}</strong><small>{formatDateTime(event.createdAt)} · {humanize(event.reasonCode)}</small></div></li>)}</ol>
+          <ol>{order.auditEvents.map((event) => <li key={event.id}><span className={event.outcome === "failed" || event.outcome === "failure" ? "failed" : ""} /><div><strong>{event.sequence ? `${event.sequence}. ` : ""}{humanize(event.eventType)}</strong><small>{formatDateTime(event.createdAt)} · {humanize(event.reasonCode)}{event.eventHash ? ` · ${shortHash(event.eventHash)}` : ""}</small></div></li>)}</ol>
         )}
       </section>
     </article>
@@ -283,6 +326,10 @@ function shortOrderId(value: string): string {
 
 function humanize(value: string): string {
   return value.replaceAll(".", " ").replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function shortHash(value: string): string {
+  return `${value.slice(0, 10)}…${value.slice(-8)}`;
 }
 
 function formatDate(value: string): string {

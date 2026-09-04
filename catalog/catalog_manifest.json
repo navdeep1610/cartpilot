@@ -626,7 +626,7 @@
       "version": "current_planning_snapshot",
       "required_for_runtime": false,
       "required_for_implementation_review": true,
-      "sha256": "29b496cfdece11343af23641e89ff8d64348b45a46ea398db3487e719169f095"
+      "sha256": "f3048f3c2373eaa49555ee0918b06d125156fd061aea7adf8ca564d772815bab"
     },
     {
       "resource_id": "implementation_spec",
@@ -635,7 +635,7 @@
       "version": "1.0.0",
       "required_for_runtime": false,
       "required_for_implementation_review": true,
-      "sha256": "de8c57ef7414b66a32ac7f2f1ddc3e3f4e1b36c96994c772c088b91983a2245d"
+      "sha256": "afcbe1e76df49cd65cac76b56552b20e299dfb9823a13413326aefb232e4bc42"
     }
   ],
   "normalization_contract": {

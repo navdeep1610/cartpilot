@@ -23,14 +23,38 @@ export interface MerchantOrderLine {
 
 export interface MerchantOrderAuditEvent {
   id: string;
+  sequence: number | null;
   eventType: string;
   outcome: string;
   reasonCode: string;
   createdAt: string;
+  eventHash: string | null;
+  previousEventHash: string | null;
+}
+
+export interface MerchantAuditIntegrity {
+  status: "verified" | "broken" | "legacy";
+  eventCount: number;
+  headHash: string | null;
+  issues: string[];
+}
+
+export interface MerchantDecisionEvidence {
+  catalogVersion: string | null;
+  policyVersion: string | null;
+  evaluatedCandidates: number;
+  eligibleCandidates: number;
+  rejectedCandidates: number;
+  selectedCandidateId: string | null;
+  baselineCandidateId: string | null;
+  selectedContributionProfitPaise: number | null;
+  incrementalContributionProfitPaise: number | null;
+  rejectionReasonCodes: string[];
 }
 
 export interface MerchantOrder {
   paymentRecordId: string;
+  traceId: string;
   internalOrderId: string;
   razorpayOrderId: string;
   razorpayPaymentId: string | null;
@@ -55,6 +79,8 @@ export interface MerchantOrder {
   createdAt: string;
   updatedAt: string;
   auditEvents: MerchantOrderAuditEvent[];
+  auditIntegrity: MerchantAuditIntegrity;
+  decisionEvidence: MerchantDecisionEvidence | null;
 }
 
 export interface MerchantOrdersResponse {

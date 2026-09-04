@@ -58,6 +58,7 @@ describe("reconcileRazorpayPayment", () => {
 function paymentRecord(): StoredPaymentRecord {
   return {
     payment_record_id: "PAYREC-TEST-12345678",
+    trace_id: "TRACE-TEST-12345678",
     internal_order_id: "ORD-TEST-12345678",
     decision_id: "DECISION-TEST",
     session_id: "SESSION-TEST-12345678",
