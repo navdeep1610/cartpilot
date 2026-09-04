@@ -1,0 +1,7 @@
+* text=auto
+
+# Runtime integrity hashes are calculated from exact bytes. Keep their line endings
+# identical on Windows development machines and Linux deployments.
+/catalog/** text eol=lf
+/schemas/** text eol=lf
+/*.md text eol=lf

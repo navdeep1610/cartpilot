@@ -4,7 +4,7 @@ Status date: 4 September 2026
 
 Track: 01 — AI Growth & Agentic Commerce
 
-Current upgrade phase: Phase 1 — story and governance freeze
+Current upgrade phase: Phase 2 — commercial-policy correctness completed
 
 ## Official brief translated into acceptance criteria
 
@@ -29,7 +29,7 @@ Primary business measure: estimated contribution-profit uplift per shopping sess
 |---|---|---|---|
 | Track 01 revenue-growth route | Implemented | Routine completion, bundles, cross-sells, discounts and Razorpay Test Mode are present | Publish reproducible uplift results |
 | Explainable | Partial | Customer offer reasons and merchant reason codes exist | Show every candidate, calculation, gate and rejection in merchant audit |
-| Bounded | Partial | Catalog prices, inventory, budgets, margin floors and deterministic selection exist | Close bundle-component, exclusion, unknown-compatibility and discount-policy gaps |
+| Bounded | Implemented | Runtime-validated catalog snapshots, fail-closed compatibility, component inventory, exclusions, discount guards, relevance, cross-sell limits and profit floors are enforced | Preserve with end-to-end regression coverage |
 | Customer-gated | Implemented | Exact revalidated cart and total are required before order creation | Add end-to-end regression coverage |
 | Payment-gated | Implemented with hardening required | Fulfilment requires capture plus paid-order evidence | Make webhook/state writes atomic and test replay/out-of-order delivery |
 | Audit trail | Partial | Confirmed checkouts and payment events are stored | Record the complete intent-to-fulfilment chain with append-only integrity |
@@ -49,20 +49,24 @@ Primary business measure: estimated contribution-profit uplift per shopping sess
 
 Phase 1 exit criterion: product, repository and storefront tell the same story without overstating unfinished safeguards.
 
-## Next release gate: Phase 2
+## Phase 2 deliverables
 
-Commercial-policy correctness must be completed before payment/audit expansion:
+Commercial-policy correctness completed before payment/audit expansion:
 
-- Validate every bundle component's availability and compatibility.
-- Treat unknown product relationships according to a fail-closed policy.
-- Enforce customer ingredient and product exclusions.
-- Enforce non-stacking and prepriced-bundle discount rules.
-- Add hard relevance and maximum-one-cross-sell checks.
-- Enforce manifest checksums, row counts, headers and version identities at runtime.
-- Validate decision objects against their declared schema.
-- Add focused regression tests for every rule above.
+- [x] Validate every bundle component's availability and compatibility.
+- [x] Treat unknown product relationships according to a fail-closed policy.
+- [x] Enforce customer ingredient and product exclusions.
+- [x] Enforce non-stacking and prepriced-bundle discount rules.
+- [x] Add hard relevance and maximum-one-cross-sell checks.
+- [x] Enforce manifest checksums, row counts, headers and version identities at runtime.
+- [x] Validate decision objects against their declared schema.
+- [x] Add focused regression tests for every rule above.
 
 Phase 2 exit criterion: no recommendation or offer can bypass a catalog, compatibility, inventory, budget, discount or contribution-profit rule.
+
+## Next release gate: Phase 3
+
+Atomic payment and webhook reliability comes next: one confirmed cart must map to one recoverable Razorpay order, duplicate or out-of-order events must be idempotent, and related payment state changes must commit transactionally.
 
 ## Submission definition of done
 

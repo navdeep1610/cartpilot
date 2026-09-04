@@ -1,9 +1,9 @@
 {
   "manifest_id": "CARTPILOT-CATALOG-MANIFEST",
-  "manifest_version": "1.0.1",
-  "catalog_version": "1.0.0",
+  "manifest_version": "1.1.0",
+  "catalog_version": "1.1.0",
   "snapshot_date": "2026-08-24",
-  "status": "implementation_audit_in_progress",
+  "status": "policy_correctness_verified",
   "environment": "test",
   "merchant_id": "CARTPILOT-DEMO-SKINCARE-MERCHANT",
   "merchant_display_name": "CartPilot Demo Skincare Store",
@@ -40,7 +40,7 @@
     "variant_count": 74,
     "merchant_economics_row_count": 74,
     "product_profile_count": 40,
-    "compatibility_rule_count": 89,
+    "compatibility_rule_count": 96,
     "bundle_count": 5,
     "bundle_component_row_count": 15,
     "evaluation_scenario_count": 35,
@@ -287,12 +287,12 @@
       "resource_id": "product_compatibility",
       "path": "catalog/product_compatibility.csv",
       "format": "csv_rfc4180_utf8",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "required": true,
       "load_order": 50,
       "visibility": "backend_internal_with_customer_reason_projection",
       "runtime_role": "pairwise_complement_substitute_redundancy_and_safety_rules",
-      "row_count": 89,
+      "row_count": 96,
       "primary_key": [
         "rule_id"
       ],
@@ -344,7 +344,7 @@
       "data_status_counts": {
         "draft_expert_review": 89
       },
-      "sha256": "577e89ccf3d7b119b05c379b26e2f45b01ba446869bc69614cb43c20b1ae86ad",
+      "sha256": "8e98d9208ba4334b8f8f9823c2016ef6ddb644d3e90c74080f93053fd19b41dd",
       "failure_mode": "fatal_for_bundle_and_cross_sell_selection"
     },
     {
@@ -465,7 +465,7 @@
       "resource_id": "profit_policy",
       "path": "catalog/profit_policy.json",
       "format": "json_utf8",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "required": true,
       "load_order": 80,
       "visibility": "merchant_private",
@@ -485,7 +485,7 @@
       ],
       "expected_identity": {
         "policy_id": "CARTPILOT-PROFIT-POLICY",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "decision_mode": "deterministic",
         "random_offer_selection": false,
         "machine_learning_offer_selection_enabled": false
@@ -500,7 +500,7 @@
         "bundle_components",
         "discount_policy"
       ],
-      "sha256": "94fff044c509b8f56ad21732aa1e4d573e44c876370a8b78d65bf03b18a8bd43",
+      "sha256": "1a070147e62fb8d436452ab0b1e15a162b792df6faa37249e4108010f217fb2f",
       "failure_mode": "fatal_for_all_offer_selection"
     },
     {
@@ -626,7 +626,7 @@
       "version": "current_planning_snapshot",
       "required_for_runtime": false,
       "required_for_implementation_review": true,
-      "sha256": "c50520ce122aef3ce04d7d6461de569475247236c26725d18f6fba4e803438c8"
+      "sha256": "fd3301b2c2849fd972ba4e80a0f85f7014f7ef9e2df5a176fe9d3a64287b7836"
     },
     {
       "resource_id": "implementation_spec",
@@ -635,7 +635,7 @@
       "version": "1.0.0",
       "required_for_runtime": false,
       "required_for_implementation_review": true,
-      "sha256": "103dba34bb7cb8d79414f324deee642e327610a657f1430c6e548ad7d812d935"
+      "sha256": "390f7f3b2385a0e98ee73a4d5e2f957f639a840801101007865ddb4f7f214dd7"
     }
   ],
   "normalization_contract": {
@@ -914,7 +914,7 @@
         "database",
         "acceptance_tests"
       ],
-      "current_status": "not_yet_authorized"
+      "current_status": "authorized_by_repository_owner"
     }
   ],
   "change_control": {
@@ -933,6 +933,6 @@
     "The manifest is a pinned planning snapshot. Editing a listed resource invalidates its checksum until this manifest and the relevant version are deliberately updated.",
     "The public catalog may be shown to customers, but all commercial internals remain merchant-only.",
     "Razorpay Test Mode confirms payment integration behavior; it does not supply or validate the synthetic merchant economics in this catalog.",
-    "No application implementation is authorized by this file. It is an input contract for the later implementation specification and approval gate."
+    "The repository owner authorized implementation; this manifest remains the runtime integrity and policy contract."
   ]
 }

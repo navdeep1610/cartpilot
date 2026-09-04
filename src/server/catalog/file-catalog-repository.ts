@@ -13,6 +13,7 @@ import type {
   ProfitPolicyConfig,
 } from "@/domain/catalog/types";
 import { inrToPaise, percentToBps } from "@/domain/money";
+import { validateCatalogManifest } from "@/server/catalog/manifest-validator";
 
 let cachedCatalog: Promise<CatalogSnapshot> | null = null;
 
@@ -23,6 +24,8 @@ export function getCatalogSnapshot(): Promise<CatalogSnapshot> {
 
 export async function loadCatalogSnapshot(rootDirectory = process.cwd()): Promise<CatalogSnapshot> {
   const catalogDirectory = path.join(rootDirectory, "catalog");
+  const manifestSource = await readFile(path.join(catalogDirectory, "catalog_manifest.json"), "utf8");
+  const { manifest, integrity } = await validateCatalogManifest(rootDirectory, manifestSource);
   const [
     productRows,
     variantRows,
@@ -32,7 +35,6 @@ export async function loadCatalogSnapshot(rootDirectory = process.cwd()): Promis
     bundleRows,
     profitPolicySource,
     discountPolicySource,
-    manifestSource,
   ] = await Promise.all([
     readCsv(path.join(catalogDirectory, "customer_catalog.csv")),
     readCsv(path.join(catalogDirectory, "product_variants.csv")),
@@ -42,7 +44,6 @@ export async function loadCatalogSnapshot(rootDirectory = process.cwd()): Promis
     readCsv(path.join(catalogDirectory, "bundle_components.csv")),
     readFile(path.join(catalogDirectory, "profit_policy.json"), "utf8"),
     readFile(path.join(catalogDirectory, "discount_policy.json"), "utf8"),
-    readFile(path.join(catalogDirectory, "catalog_manifest.json"), "utf8"),
   ]);
 
   const products = uniqueMap(productRows.map(toProduct), (item) => item.productId, "product");
@@ -56,18 +57,22 @@ export async function loadCatalogSnapshot(rootDirectory = process.cwd()): Promis
 
   const profitPolicyJson = JSON.parse(profitPolicySource) as Record<string, unknown>;
   const discountPolicyJson = JSON.parse(discountPolicySource) as Record<string, unknown>;
-  const manifestJson = JSON.parse(manifestSource) as { catalog_version?: string };
+  validateExpectedCounts(manifest.expected_snapshot, products, variants, economics, profiles, compatibilityRules, bundleComponents);
+  const profitPolicy = toProfitPolicy(profitPolicyJson);
+  const discountPolicy = toDiscountPolicy(discountPolicyJson);
+  validatePolicyAlignment(profitPolicyJson, discountPolicyJson, profitPolicy, discountPolicy);
 
   return {
-    version: manifestJson.catalog_version ?? "unversioned",
+    version: manifest.catalog_version,
+    integrity,
     products,
     variants,
     economics,
     profiles,
     compatibilityRules,
     bundleComponents,
-    profitPolicy: toProfitPolicy(profitPolicyJson),
-    discountPolicy: toDiscountPolicy(discountPolicyJson),
+    profitPolicy,
+    discountPolicy,
   };
 }
 
@@ -96,13 +101,16 @@ function toVariant(row: Record<string, string>): ProductVariant {
   const currency = required(row, "currency");
   if (currency !== "INR") throw new Error(`Unsupported currency ${currency}`);
 
+  const pricePaise = inrToPaise(required(row, "price_inr"));
+  const stockQuantity = integer(row, "stock_quantity");
+  if (pricePaise <= 0 || stockQuantity < 0) throw new Error(`Invalid price or stock for ${row.variant_id}`);
   return {
     variantId: required(row, "variant_id"),
     productId: required(row, "product_id"),
     size: required(row, "size"),
-    pricePaise: inrToPaise(required(row, "price_inr")),
+    pricePaise,
     currency,
-    stockQuantity: integer(row, "stock_quantity"),
+    stockQuantity,
     isDefault: boolean(row, "is_default"),
     active: boolean(row, "active"),
     dataStatus: required(row, "data_status"),
@@ -110,7 +118,7 @@ function toVariant(row: Record<string, string>): ProductVariant {
 }
 
 function toEconomics(row: Record<string, string>): MerchantEconomics {
-  return {
+  const economics = {
     variantId: required(row, "variant_id"),
     unitCostPaise: inrToPaise(required(row, "unit_cost_inr")),
     packagingCostPaise: inrToPaise(required(row, "packaging_cost_inr")),
@@ -122,6 +130,18 @@ function toEconomics(row: Record<string, string>): MerchantEconomics {
     inventoryPriority: required(row, "inventory_priority"),
     dataStatus: required(row, "data_status"),
   };
+  if (
+    economics.unitCostPaise < 0 ||
+    economics.packagingCostPaise < 0 ||
+    economics.fulfilmentCostPaise < 0 ||
+    economics.returnProcessingCostPaise < 0 ||
+    economics.minContributionMarginPaise < 0 ||
+    economics.expectedReturnRateBps < 0 ||
+    economics.expectedReturnRateBps > 10_000 ||
+    economics.maxDiscountBps < 0 ||
+    economics.maxDiscountBps > 10_000
+  ) throw new Error(`Invalid economics range for ${economics.variantId}`);
+  return economics;
 }
 
 function toProfile(row: Record<string, string>): ProductProfile {
@@ -202,6 +222,7 @@ function toProfitPolicy(json: Record<string, unknown>): ProfitPolicyConfig {
 
 function toDiscountPolicy(json: Record<string, unknown>): DiscountPolicyConfig {
   const guards = object(json.global_guards, "global_guards");
+  const crossSellPolicy = object(json.cross_sell_policy, "cross_sell_policy");
   const triggers = array(json.trigger_rules, "trigger_rules").map((value) => {
     const trigger = object(value, "trigger");
     return {
@@ -242,6 +263,14 @@ function toDiscountPolicy(json: Record<string, unknown>): DiscountPolicyConfig {
     allowAdditionalDiscountOnPrepricedBundles: Boolean(
       guards.allow_additional_dynamic_discount_on_prepriced_bundles,
     ),
+    maximumDynamicDiscountsPerSession: numberValue(
+      guards.maximum_dynamic_discounts_per_session,
+      "maximum dynamic discounts per session",
+    ),
+    maximumCrossSellItemsPerCycle: numberValue(
+      crossSellPolicy.maximum_cross_sell_items_per_cycle,
+      "maximum cross-sell items per cycle",
+    ),
   };
 }
 
@@ -260,16 +289,97 @@ function validateReferences(
   for (const product of products.values()) {
     if (!profiles.has(product.productId)) throw new Error(`Product ${product.productId} has no profile`);
   }
+  for (const economicsRow of economics.values()) {
+    if (!variants.has(economicsRow.variantId)) {
+      throw new Error(`Economics row ${economicsRow.variantId} references a missing variant`);
+    }
+  }
+  const compatibilityRuleIds = new Set<string>();
   for (const rule of compatibilityRules) {
+    if (compatibilityRuleIds.has(rule.ruleId)) throw new Error(`Duplicate compatibility rule ${rule.ruleId}`);
+    compatibilityRuleIds.add(rule.ruleId);
     if (!products.has(rule.sourceProductId) || !products.has(rule.targetProductId)) {
       throw new Error(`Compatibility rule ${rule.ruleId} references a missing product`);
     }
-  }
-  for (const component of bundleComponents) {
-    if (!variants.has(component.bundleVariantId) || !variants.has(component.componentVariantId)) {
-      throw new Error(`Bundle component ${component.bundleProductId} references a missing variant`);
+    if (!["allow", "clarify", "separate_use", "block_auto_bundle", "manual_review"].includes(rule.safetyAction)) {
+      throw new Error(`Compatibility rule ${rule.ruleId} has an invalid safety action`);
     }
   }
+  const bundleKeys = new Set<string>();
+  for (const component of bundleComponents) {
+    const bundleVariant = variants.get(component.bundleVariantId);
+    const componentVariant = variants.get(component.componentVariantId);
+    const bundleProduct = products.get(component.bundleProductId);
+    if (!bundleVariant || !componentVariant || !bundleProduct) {
+      throw new Error(`Bundle component ${component.bundleProductId} references a missing variant`);
+    }
+    if (
+      bundleProduct.productType !== "Bundle" ||
+      bundleVariant.productId !== component.bundleProductId ||
+      componentVariant.productId !== component.componentProductId ||
+      component.quantity < 1 ||
+      component.displayOrder < 1
+    ) throw new Error(`Bundle component identity is invalid for ${component.bundleProductId}`);
+    const bundleKey = `${component.bundleVariantId}:${component.componentVariantId}`;
+    if (bundleKeys.has(bundleKey)) throw new Error(`Duplicate bundle component ${bundleKey}`);
+    bundleKeys.add(bundleKey);
+  }
+  const bundleGroups = Map.groupBy(bundleComponents, (component) => component.bundleVariantId);
+  for (const [bundleVariantId, components] of bundleGroups) {
+    const activeRequired = (components ?? []).filter((component) => component.active && component.required);
+    if (activeRequired.length < 2 || new Set(activeRequired.map((item) => item.displayOrder)).size !== activeRequired.length) {
+      throw new Error(`Bundle ${bundleVariantId} does not have valid required components`);
+    }
+  }
+}
+
+function validateExpectedCounts(
+  expected: Record<string, unknown>,
+  products: ReadonlyMap<string, CatalogProduct>,
+  variants: ReadonlyMap<string, ProductVariant>,
+  economics: ReadonlyMap<string, MerchantEconomics>,
+  profiles: ReadonlyMap<string, ProductProfile>,
+  compatibilityRules: readonly ProductCompatibilityRule[],
+  bundleComponents: readonly BundleComponent[],
+): void {
+  const counts: Record<string, number> = {
+    product_count: products.size,
+    variant_count: variants.size,
+    merchant_economics_row_count: economics.size,
+    product_profile_count: profiles.size,
+    compatibility_rule_count: compatibilityRules.length,
+    bundle_count: new Set(bundleComponents.map((component) => component.bundleProductId)).size,
+    bundle_component_row_count: bundleComponents.length,
+  };
+  for (const [key, actual] of Object.entries(counts)) {
+    if (expected[key] !== actual) throw new Error(`Catalog snapshot count mismatch for ${key}`);
+  }
+}
+
+function validatePolicyAlignment(
+  profitJson: Record<string, unknown>,
+  discountJson: Record<string, unknown>,
+  profitPolicy: ProfitPolicyConfig,
+  discountPolicy: DiscountPolicyConfig,
+): void {
+  const discountGuards = object(discountJson.global_guards, "global_guards");
+  const profitRanking = object(profitJson.ranking, "ranking");
+  if (
+    profitJson.currency !== "INR" ||
+    discountJson.currency !== "INR" ||
+    profitJson.decision_mode !== "deterministic" ||
+    discountJson.decision_mode !== "deterministic" ||
+    profitJson.random_offer_selection !== false ||
+    discountJson.random_offer_selection !== false ||
+    profitJson.machine_learning_offer_selection_enabled !== false ||
+    discountPolicy.maximumCrossSellItemsPerCycle !== 1 ||
+    profitPolicy.cartMinimumContributionProfitPaise !== discountGuards.minimum_cart_contribution_margin_paise ||
+    profitPolicy.cartMinimumContributionMarginBps !== discountGuards.minimum_cart_contribution_margin_bps ||
+    profitPolicy.minimumIncrementalContributionProfitPaise !== discountGuards.minimum_incremental_contribution_profit_paise ||
+    profitPolicy.minimumOfferScoreImprovementBps !== discountGuards.minimum_offer_score_improvement_bps ||
+    profitPolicy.version !== profitJson.version ||
+    profitRanking.version !== profitJson.version
+  ) throw new Error("Discount and profit policy identities or hard gates are not aligned");
 }
 
 function uniqueMap<T>(values: readonly T[], key: (value: T) => string, label: string): Map<string, T> {

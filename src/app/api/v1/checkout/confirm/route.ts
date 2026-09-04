@@ -17,6 +17,7 @@ import {
   shoppingSessionCookie,
 } from "@/server/session/shopping-session";
 import { getCustomerProfileId } from "@/server/session/customer-profile-session";
+import { assertOfferDecisionSchema } from "@/server/offers/validate-offer-decision";
 
 export const runtime = "nodejs";
 
@@ -73,6 +74,8 @@ export async function POST(request: Request) {
     const snapshot = await getCatalogSnapshot();
     const intent = extractFallbackIntent(message);
     const decision = selectOffer(snapshot, body.evaluatedCartLines, intent);
+    let responseSessionId = getShoppingSessionId(request) ?? createShoppingSessionId();
+    assertOfferDecisionSchema(snapshot, decision, intent, responseSessionId);
     const confirmedCandidate = findConfirmableCandidate(decision, body.expectedCandidateId);
     if (!confirmedCandidate) {
       return safeError("DECISION_INVALID", "The confirmed cart could not be reconstructed.", 409, true);
@@ -97,7 +100,6 @@ export async function POST(request: Request) {
       );
     }
 
-    let responseSessionId = getShoppingSessionId(request) ?? createShoppingSessionId();
     const confirmedCart = {
       lines: confirmedCandidate.profit.lines.map((line) => ({
         variantId: line.variantId,

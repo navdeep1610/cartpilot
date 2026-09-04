@@ -1,6 +1,6 @@
 # CartPilot — Product and Build Plan
 
-Status: Baseline application implemented; Phase 1 hackathon story and governance freeze completed on 4 September 2026. Submission hardening remains in progress.
+Status: Baseline application implemented; Phase 2 commercial-policy correctness completed on 4 September 2026. Atomic payment hardening is next.
 
 Original planning date: 24 August 2026
 
@@ -643,7 +643,7 @@ Shopper and merchant interfaces, data flow, money-action policy, entities and ac
 
 ### Gate E — Authorise implementation — complete
 
-The baseline application is implemented. On 4 September 2026 the owner authorised the Phase 1 hackathon-readiness upgrade and direct GitHub delivery.
+The baseline application is implemented. On 4 September 2026 the owner authorised the Phase 1 and Phase 2 hackathon-readiness upgrades and direct GitHub delivery.
 
 ### Gate F — Submission readiness
 

@@ -36,6 +36,15 @@ const concernTerms: Record<string, string[]> = {
   dry_lips: ["dry lip", "chapped lip"],
 };
 
+const ingredientTerms: Record<string, string[]> = {
+  retinoid_or_retinol: ["retinol", "retinoid"],
+  benzoyl_peroxide: ["benzoyl peroxide"],
+  salicylic_acid_or_bha: ["salicylic acid", "bha"],
+  glycolic_or_lactic_acid_aha: ["glycolic acid", "lactic acid", "aha"],
+  vitamin_c: ["vitamin c"],
+  niacinamide: ["niacinamide"],
+};
+
 export function extractFallbackIntent(message: string): NormalizedCustomerIntent {
   const normalized = message.toLowerCase().trim();
   const requestedProductTypes = matchingKeys(normalized, productTerms);
@@ -46,6 +55,8 @@ export function extractFallbackIntent(message: string): NormalizedCustomerIntent
   const budgetInr = extractBudget(normalized);
   const priceSignal = detectPriceSignal(normalized, budgetInr);
   const asksForRoutine = normalized.includes("routine") || requestedProductTypes.length > 1;
+  const productTypeExclusions = matchingExcludedKeys(normalized, productTerms);
+  const ingredientExclusions = matchingExcludedKeys(normalized, ingredientTerms);
 
   return {
     messageSummary: message.trim().slice(0, 300) || "Customer requested skincare help.",
@@ -65,8 +76,8 @@ export function extractFallbackIntent(message: string): NormalizedCustomerIntent
     priceSignal,
     avoidStrongActives:
       normalized.includes("avoid strong") || normalized.includes("no strong active") || skinTypes.includes("sensitive"),
-    productTypeExclusions: [],
-    ingredientExclusions: [],
+    productTypeExclusions,
+    ingredientExclusions,
     needsProfessionalGuidance:
       ["open wound", "severe reaction", "skin infection", "diagnose", "prescription"].some((term) =>
         normalized.includes(term),
@@ -83,6 +94,20 @@ function matchingKeys(message: string, dictionary: Record<string, string[]>): st
   return Object.entries(dictionary)
     .filter(([, terms]) => terms.some((term) => message.includes(term)))
     .map(([key]) => key);
+}
+
+function matchingExcludedKeys(message: string, dictionary: Record<string, string[]>): string[] {
+  return Object.entries(dictionary)
+    .filter(([, terms]) => terms.some((term) => exclusionPattern(term).test(message)))
+    .map(([key]) => key);
+}
+
+function exclusionPattern(term: string): RegExp {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?:\\bno\\b|\\bwithout\\b|\\bavoid\\b|\\bexclude\\b|\\bdo not want\\b|\\bdon't want\\b)(?:\\s+any)?(?:\\s+products?\\s+with)?\\s+${escaped}\\b`,
+    "i",
+  );
 }
 
 function extractBudget(message: string): number | null {

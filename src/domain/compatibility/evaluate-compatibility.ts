@@ -8,6 +8,7 @@ export interface CompatibilityEvaluation {
   decision: CompatibilityDecision;
   matchedRuleIds: string[];
   reasons: string[];
+  unmatchedPairs: Array<{ firstProductId: string; secondProductId: string }>;
 }
 
 const decisionSeverity: Record<CompatibilityDecision, number> = {
@@ -24,22 +25,30 @@ export function evaluateCompatibility(
 ): CompatibilityEvaluation {
   const uniqueIds = [...new Set(productIds)];
   const matchedRules: ProductCompatibilityRule[] = [];
+  const unmatchedPairs: CompatibilityEvaluation["unmatchedPairs"] = [];
 
   for (let left = 0; left < uniqueIds.length; left += 1) {
     for (let right = left + 1; right < uniqueIds.length; right += 1) {
       const first = uniqueIds[left];
       const second = uniqueIds[right];
-      matchedRules.push(
-        ...snapshot.compatibilityRules.filter((rule) => matchesPair(rule, first, second)),
-      );
+      const pairRules = snapshot.compatibilityRules.filter((rule) => matchesPair(rule, first, second));
+      if (pairRules.length === 0) {
+        unmatchedPairs.push({ firstProductId: first, secondProductId: second });
+      } else {
+        matchedRules.push(...pairRules);
+      }
     }
   }
 
-  const highestSeverity = matchedRules.reduce<CompatibilityDecision>(
+  const matchedSeverity = matchedRules.reduce<CompatibilityDecision>(
     (current, rule) =>
       decisionSeverity[rule.safetyAction] > decisionSeverity[current] ? rule.safetyAction : current,
     "allow",
   );
+  const highestSeverity =
+    unmatchedPairs.length > 0 && decisionSeverity[matchedSeverity] < decisionSeverity.clarify
+      ? "clarify"
+      : matchedSeverity;
 
   return {
     decision: highestSeverity,
@@ -47,7 +56,13 @@ export function evaluateCompatibility(
     reasons: matchedRules
       .filter((rule) => rule.safetyAction !== "allow" || rule.relationshipType !== "complements")
       .sort((left, right) => right.priorityRank - left.priorityRank || left.ruleId.localeCompare(right.ruleId))
-      .map((rule) => rule.reason),
+      .map((rule) => rule.reason)
+      .concat(
+        unmatchedPairs.length > 0
+          ? ["CartPilot found no explicit catalog relationship for every proposed product pair, so it did not assume compatibility."]
+          : [],
+      ),
+    unmatchedPairs,
   };
 }
 

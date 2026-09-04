@@ -16,6 +16,8 @@ CartPilot follows the challenge's revenue-growth route. Agent-to-agent protocol 
 - Natural-language intent extraction with a deterministic fallback when Gemini is unavailable.
 - Catalog-backed routine recommendations and human-readable reasons.
 - Deterministic baseline, bundle, cross-sell, substitute and bounded-discount candidates.
+- Fail-closed compatibility, bundle-component inventory, customer-exclusion and discount-policy guards.
+- Runtime manifest and offer-decision schema validation before commercial results are returned.
 - Integer-paise profit calculations and merchant-controlled margin rules.
 - Exact-cart and exact-total confirmation before order creation.
 - Razorpay Orders and Standard Checkout in Test Mode.
@@ -29,7 +31,7 @@ CartPilot follows the challenge's revenue-growth route. Agent-to-agent protocol 
 The baseline application is implemented and builds successfully. A September 2026 readiness audit identified the remaining work needed before the project should be presented as hackathon-complete.
 
 1. Hackathon story and governance freeze — complete in this release.
-2. Commercial-policy correctness and catalog validation.
+2. Commercial-policy correctness and catalog validation — complete in this release.
 3. Transactional payment and webhook reliability.
 4. Complete intent-to-fulfilment audit trail.
 5. Failure-first customer recovery flow.
@@ -70,7 +72,7 @@ pnpm test
 pnpm build
 ```
 
-The Phase 1 baseline passes lint, type checking, 30 unit tests and the production build. End-to-end payment, failure recovery and the full evaluation suite remain release gates rather than completed claims.
+The Phase 2 release passes lint, type checking, 40 unit and policy-regression tests, runtime integrity checks and the production build. Atomic payments, end-to-end failure recovery and the full evaluation suite remain release gates rather than completed claims.
 
 ## Demo path
 

@@ -1,6 +1,7 @@
 import type { CatalogSnapshot, ProductProfile, ProductVariant } from "@/domain/catalog/types";
 import { evaluateCompatibility } from "@/domain/compatibility/evaluate-compatibility";
 import type { NormalizedCustomerIntent } from "@/domain/intent/types";
+import { evaluateCustomerConstraints } from "@/domain/policies/customer-constraints";
 
 export interface RoutineRecommendationItem {
   productId: string;
@@ -66,16 +67,24 @@ export function recommendRoutine(
   const desiredSteps = chooseDesiredSteps(intent);
   const selected: { profile: ProductProfile; variant: ProductVariant }[] = [];
   for (const step of desiredSteps) {
-    const candidate = rankedProducts.find(
-      ({ profile }) => stepMatches(profile.routineStep, step) && !selected.some((item) => item.profile.productId === profile.productId),
+    const stepCandidates = rankedProducts.filter(
+      ({ profile }) =>
+        stepMatches(profile.routineStep, step) &&
+        !selected.some((item) => item.profile.productId === profile.productId),
     );
-    if (!candidate) continue;
-    const variant = defaultAvailableVariant(snapshot, candidate.profile.productId);
-    if (!variant) continue;
-    const trialIds = [...selected.map((item) => item.profile.productId), candidate.profile.productId];
-    const compatibility = evaluateCompatibility(snapshot, trialIds);
-    if (["clarify", "block_auto_bundle", "manual_review"].includes(compatibility.decision)) continue;
-    selected.push({ profile: candidate.profile, variant });
+    for (const candidate of stepCandidates) {
+      const variant = defaultAvailableVariant(snapshot, candidate.profile.productId);
+      if (!variant) continue;
+      const trialIds = [...selected.map((item) => item.profile.productId), candidate.profile.productId];
+      const compatibility = evaluateCompatibility(snapshot, trialIds);
+      const constraints = evaluateCustomerConstraints(snapshot, trialIds, intent);
+      if (
+        !constraints.passed ||
+        ["clarify", "block_auto_bundle", "manual_review"].includes(compatibility.decision)
+      ) continue;
+      selected.push({ profile: candidate.profile, variant });
+      break;
+    }
   }
 
   if (selected.length === 0) {
@@ -129,8 +138,7 @@ function scoreProfile(snapshot: CatalogSnapshot, profile: ProductProfile, intent
   const product = snapshot.products.get(profile.productId);
   if (!product || product.status !== "active") return 0;
   if (!defaultAvailableVariant(snapshot, profile.productId)) return 0;
-  if (intent.productTypeExclusions.includes(product.productType.toLowerCase().replaceAll(" ", "_"))) return 0;
-  if (intent.avoidStrongActives && /retinol|benzoyl|glycolic|salicylic|bha|aha/.test(profile.declaredActives.join(" "))) return 0;
+  if (!evaluateCustomerConstraints(snapshot, [profile.productId], intent).passed) return 0;
 
   const skinScore = overlap(profile.supportedSkinTypes, intent.skinTypes) * 30;
   const concernScore = overlap(profile.supportedConcerns, intent.concerns) * 40;

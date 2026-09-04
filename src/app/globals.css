@@ -904,6 +904,24 @@ button:disabled {
 .accepted-offer span { display: flex; flex-direction: column; }
 .accepted-offer small { color: #536a5a; font-weight: 500; }
 
+.policy-check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  margin: 4px 0 14px;
+  padding: 13px 14px;
+  border: 1px solid rgba(51, 99, 78, .18);
+  border-radius: 13px;
+  background: rgba(222, 237, 227, .66);
+  color: var(--forest);
+}
+.policy-check span { display: flex; flex-direction: column; gap: 2px; }
+.policy-check strong { font-size: .88rem; }
+.policy-check small { color: #536a5a; line-height: 1.45; }
+.policy-check.blocked { border-color: rgba(160, 70, 58, .26); background: rgba(250, 229, 224, .72); color: var(--danger); }
+.policy-check.blocked small { color: #80554e; }
+
 .offer-card {
   margin: 4px 0 18px;
   padding: 18px;

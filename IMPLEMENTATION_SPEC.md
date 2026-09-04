@@ -2,7 +2,7 @@
 
 Document version: 1.0.0  
 Planning snapshot: 24 August 2026  
-Status: Baseline application implemented; Phase 1 hackathon story and governance freeze completed 4 September 2026
+Status: Baseline application implemented; Phase 2 commercial-policy correctness completed 4 September 2026
 
 Target: Razorpay AI Buildathon — Track 01, AI Growth & Agentic Commerce
 
@@ -1061,6 +1061,7 @@ Application implementation is authorised. Submission release remains blocked unt
 - [ ] Approved shopper and merchant UI wireframes.
 - [ ] Confirmed buildathon application deadline and eligibility.
 - [x] Explicit instruction to begin the Phase 1 hackathon-readiness upgrade and deliver it to GitHub.
+- [x] Explicit instruction to implement Phase 2 commercial-policy correctness and deliver it to GitHub.
 
 Secrets must be entered privately into local/Vercel/Supabase configuration and never pasted into a tracked planning or source file.
 

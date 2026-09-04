@@ -125,10 +125,23 @@ export interface DiscountPolicyConfig {
   thresholdIncentives: ThresholdIncentiveConfig[];
   allowDiscountStacking: boolean;
   allowAdditionalDiscountOnPrepricedBundles: boolean;
+  maximumDynamicDiscountsPerSession: number;
+  maximumCrossSellItemsPerCycle: number;
+}
+
+export interface CatalogIntegrityMetadata {
+  manifestVersion: string;
+  manifestHash: string;
+  loadedAt: string;
+  resourceHashes: Readonly<Record<string, string>>;
+  resourceVersions: Readonly<Record<string, string>>;
+  schemaVersions: Readonly<Record<string, string>>;
+  validationStatus: "valid";
 }
 
 export interface CatalogSnapshot {
   version: string;
+  integrity: CatalogIntegrityMetadata;
   products: ReadonlyMap<string, CatalogProduct>;
   variants: ReadonlyMap<string, ProductVariant>;
   economics: ReadonlyMap<string, MerchantEconomics>;

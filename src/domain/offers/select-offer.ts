@@ -2,6 +2,7 @@ import type { CatalogSnapshot, ProductVariant } from "@/domain/catalog/types";
 import { evaluateCompatibility, type CompatibilityEvaluation } from "@/domain/compatibility/evaluate-compatibility";
 import type { NormalizedCustomerIntent } from "@/domain/intent/types";
 import { ceilRatio, formatInr, roundHalfUp } from "@/domain/money";
+import { evaluateCustomerConstraints } from "@/domain/policies/customer-constraints";
 import {
   calculateProfit,
   type PricedCandidateLine,
@@ -96,7 +97,8 @@ export function findConfirmableCandidate(
   if (candidateId !== decision.baselineCandidateId && candidateId !== decision.selectedCandidateId) {
     return null;
   }
-  return decision.candidates.find((candidate) => candidate.candidateId === candidateId) ?? null;
+  const candidate = decision.candidates.find((item) => item.candidateId === candidateId) ?? null;
+  return candidate?.status === "rejected" ? null : candidate;
 }
 
 interface CandidateDraft {
@@ -108,6 +110,7 @@ interface CandidateDraft {
   discountRateBps: number;
   discountTriggerId: string | null;
   incentiveCostPaise?: number;
+  bundleComponents?: Array<{ productId: string; variantId: string; quantity: number; active: boolean }>;
 }
 
 export function selectOffer(
@@ -135,10 +138,10 @@ export function selectOffer(
   const candidates = compared.map((candidate) => ({
     ...candidate,
     status:
-      candidate.candidateId === selected.candidateId
-        ? "selected" as const
-        : candidate.status === "rejected"
-          ? "rejected" as const
+      candidate.status === "rejected"
+        ? "rejected" as const
+        : candidate.candidateId === selected.candidateId
+          ? "selected" as const
           : candidate.candidateId === baseline.candidateId
             ? "baseline" as const
             : "eligible" as const,
@@ -176,7 +179,7 @@ function baselineCandidate(cartLines: readonly CartLineInput[]): CandidateDraft 
 function generateBundleCandidates(snapshot: CatalogSnapshot, cartLines: readonly CartLineInput[]): CandidateDraft[] {
   const cartVariants = new Set(cartLines.map((line) => line.variantId));
   const groups = Map.groupBy(
-    snapshot.bundleComponents.filter((component) => component.active && component.required),
+    snapshot.bundleComponents.filter((component) => component.required),
     (component) => component.bundleVariantId,
   );
   const drafts: CandidateDraft[] = [];
@@ -187,7 +190,7 @@ function generateBundleCandidates(snapshot: CatalogSnapshot, cartLines: readonly
     const cartIsSubset = [...cartVariants].every((variantId) => componentVariants.has(variantId));
     if (!cartIsSubset || componentVariants.size <= cartVariants.size) continue;
     const bundleVariant = snapshot.variants.get(bundleVariantId);
-    if (!bundleVariant?.active || bundleVariant.stockQuantity < 1) continue;
+    if (!bundleVariant) continue;
 
     drafts.push({
       candidateId: `OFR-BUNDLE-${bundleVariantId}`,
@@ -199,6 +202,12 @@ function generateBundleCandidates(snapshot: CatalogSnapshot, cartLines: readonly
       bundleProductId: bundleVariant.productId,
       discountRateBps: 0,
       discountTriggerId: null,
+      bundleComponents: components.map((component) => ({
+        productId: component.componentProductId,
+        variantId: component.componentVariantId,
+        quantity: component.quantity,
+        active: component.active,
+      })),
     });
   }
   return drafts;
@@ -280,6 +289,10 @@ function generateDiscountCandidates(
 ): CandidateDraft[] {
   const triggerId = intent.priceSignal === "explicit_budget" ? "BUDGET_GAP" : "PRICE_OBJECTION";
   if (!["explicit_budget", "explicit_price_objection", "explicit_discount_request"].includes(intent.priceSignal)) return [];
+  if (
+    !snapshot.discountPolicy.allowAdditionalDiscountOnPrepricedBundles &&
+    containsPrepricedBundle(snapshot, baseline.lines)
+  ) return [];
   const trigger = snapshot.discountPolicy.triggers.find((item) => item.triggerId === triggerId && item.enabled);
   if (!trigger) return [];
 
@@ -298,6 +311,7 @@ function generateDiscountCandidates(
     ...baseline.lines.map((line) => snapshot.economics.get(line.variantId)?.maxDiscountBps ?? 0),
   );
   const allowedRates = trigger.allowedDiscountBps
+    .filter((rate) => snapshot.discountPolicy.discountLadderBps.includes(rate))
     .filter((rate) => rate <= maxVariantDiscountBps)
     .sort((left, right) => left - right);
   const selectedRate =
@@ -320,6 +334,10 @@ function generateDiscountCandidates(
 }
 
 function generateThresholdCandidates(snapshot: CatalogSnapshot, baseline: CandidateDraft): CandidateDraft[] {
+  if (
+    !snapshot.discountPolicy.allowAdditionalDiscountOnPrepricedBundles &&
+    containsPrepricedBundle(snapshot, baseline.lines)
+  ) return [];
   const gross = sum(baseline.lines.map((line) => variantOrThrow(snapshot, line.variantId).pricePaise * line.quantity));
   return snapshot.discountPolicy.thresholdIncentives
     .filter((incentive) => incentive.enabled && gross >= incentive.minimumEligibleSubtotalPaise)
@@ -329,12 +347,12 @@ function generateThresholdCandidates(snapshot: CatalogSnapshot, baseline: Candid
         baseline.lines.map((line) => variantOrThrow(snapshot, line.variantId).pricePaise * line.quantity),
       );
       return {
-        candidateId: `OFR-THRESHOLD-${incentive.offerId}`,
+        candidateId: `OFR-THRESHOLD-${sanitizeIdentifier(incentive.offerId)}`,
         candidateType: "threshold_incentive" as const,
         lines: baseline.lines.map((line, index) => ({ ...line, lineDiscountPaise: allocations[index] })),
         addedProductIds: [],
         bundleProductId: null,
-        discountRateBps: roundHalfUp(incentive.discountPaise * 10_000, gross),
+        discountRateBps: 0,
         discountTriggerId: incentive.offerId,
       };
     });
@@ -347,7 +365,15 @@ function evaluateCandidate(
 ): OfferCandidate {
   const profit = calculateProfit(snapshot, draft.lines, draft.incentiveCostPaise ?? 0);
   const productIds = profit.lines.map((line) => line.productId);
-  const compatibility = evaluateCompatibility(snapshot, productIds);
+  const requiredBundleComponents = resolveRequiredBundleComponents(snapshot, draft.lines);
+  const nonBundleProductIds = productIds.filter(
+    (productId) => snapshot.products.get(productId)?.productType.toLowerCase() !== "bundle",
+  );
+  const policyProductIds = [
+    ...nonBundleProductIds,
+    ...requiredBundleComponents.map((component) => component.productId),
+  ];
+  const compatibility = evaluateCompatibility(snapshot, policyProductIds);
   const guardResults: GuardResult[] = [];
 
   const activeAndStock = draft.lines.every((line) => {
@@ -356,8 +382,74 @@ function evaluateCandidate(
   });
   guardResults.push(guard("ACTIVE_AND_IN_STOCK", activeAndStock, "OUT_OF_STOCK", "All variants must be active and in stock"));
 
-  const compatibilityPassed = !["clarify", "block_auto_bundle", "manual_review"].includes(compatibility.decision);
+  const bundleComponentsAvailable =
+    requiredBundleComponents.length === 0 ||
+    requiredBundleComponents.every((component) => {
+      const variant = snapshot.variants.get(component.variantId);
+      return component.active && Boolean(variant?.active && variant.stockQuantity >= component.quantity);
+    });
+  guardResults.push(
+    guard(
+      "BUNDLE_COMPONENTS_AVAILABLE",
+      bundleComponentsAvailable,
+      "BUNDLE_COMPONENT_UNAVAILABLE",
+      requiredBundleComponents.length > 0
+        ? "Every required bundle component must be active and individually in stock."
+        : "This candidate is not a prepriced bundle.",
+    ),
+  );
+
+  const customerConstraints = evaluateCustomerConstraints(snapshot, policyProductIds, intent);
+  guardResults.push(
+    guard(
+      "CUSTOMER_EXCLUSIONS",
+      customerConstraints.passed,
+      customerConstraints.reasonCodes[0] ?? "CUSTOMER_EXCLUSION_MATCH",
+      customerConstraints.details.join(" ") || "No explicit customer exclusion matched.",
+    ),
+  );
+
+  const compatibilityPassed =
+    draft.candidateType === "requested_product_only" && compatibility.unmatchedPairs.length > 0
+      ? true
+      : !["clarify", "block_auto_bundle", "manual_review"].includes(compatibility.decision);
   guardResults.push(guard("CATALOG_COMPATIBILITY", compatibilityPassed, "COMPATIBILITY_BLOCKED", `Compatibility result: ${compatibility.decision}`));
+
+  const relevancePassed = candidateIsRelevant(snapshot, draft, cartProductIds(snapshot, draft.lines));
+  guardResults.push(
+    guard(
+      "RELEVANCE",
+      relevancePassed,
+      "IRRELEVANT_TO_CUSTOMER_GOAL",
+      relevancePassed
+        ? "The candidate preserves the requested cart or adds only a catalog-declared relationship."
+        : "The candidate did not have a direct catalog relationship to the requested cart.",
+    ),
+  );
+
+  const discountPassed = passesDiscountPolicy(snapshot, draft);
+  guardResults.push(
+    guard(
+      "DISCOUNT_POLICY",
+      discountPassed,
+      "DISCOUNT_POLICY_REJECTED",
+      discountPassed
+        ? "The discount uses one eligible policy source and stays within every variant cap."
+        : "The discount failed its trigger, ladder, cap, stacking, or prepriced-bundle rule.",
+    ),
+  );
+
+  const crossSellLimitPassed =
+    draft.candidateType !== "compatible_cross_sell" ||
+    draft.addedProductIds.length <= snapshot.discountPolicy.maximumCrossSellItemsPerCycle;
+  guardResults.push(
+    guard(
+      "CROSS_SELL_LIMIT",
+      crossSellLimitPassed,
+      "CROSS_SELL_LIMIT_EXCEEDED",
+      `A maximum of ${snapshot.discountPolicy.maximumCrossSellItemsPerCycle} cross-sell item is allowed per cycle.`,
+    ),
+  );
 
   const budgetPassed = intent.budgetPaise === null || profit.netRevenuePaise <= intent.budgetPaise;
   guardResults.push(guard("CUSTOMER_BUDGET", budgetPassed, "BUDGET_EXCEEDED", intent.budgetPaise === null ? "No explicit budget" : `${profit.netRevenuePaise} paise compared with budget ${intent.budgetPaise}`));
@@ -448,7 +540,7 @@ function rankingWeights(
 ): Omit<OfferRanking, "finalOfferScoreUnits" | "scoreIsProbability"> {
   const isBaseline = draft.candidateType === "requested_product_only";
   const isSubstitute = draft.candidateType === "lower_price_substitute";
-  const isDiscount = draft.discountRateBps > 0;
+  const isDiscount = draft.lines.some((line) => (line.lineDiscountPaise ?? 0) > 0);
   const relevanceWeightBps = isBaseline || isDiscount ? 10_000 : isSubstitute ? 9_000 : 9_500;
   const compatibilityWeightBps = compatibility.decision === "separate_use" ? 9_000 : 10_000;
   const budgetFitWeightBps = intent.budgetPaise === null ? 9_500 : profit.netRevenuePaise <= intent.budgetPaise ? 10_000 : 0;
@@ -539,6 +631,122 @@ function defaultVariant(snapshot: CatalogSnapshot, productId: string): ProductVa
   return [...snapshot.variants.values()]
     .filter((variant) => variant.productId === productId && variant.active && variant.stockQuantity > 0)
     .sort((left, right) => Number(right.isDefault) - Number(left.isDefault) || left.pricePaise - right.pricePaise || left.variantId.localeCompare(right.variantId))[0] ?? null;
+}
+
+function cartProductIds(
+  snapshot: CatalogSnapshot,
+  lines: readonly PricedCandidateLine[],
+): string[] {
+  return lines.map((line) => variantOrThrow(snapshot, line.variantId).productId);
+}
+
+function candidateIsRelevant(
+  snapshot: CatalogSnapshot,
+  draft: CandidateDraft,
+  candidateProductIds: readonly string[],
+): boolean {
+  if (["requested_product_only", "discounted_product", "threshold_incentive"].includes(draft.candidateType)) {
+    return true;
+  }
+  if (draft.candidateType === "prepriced_catalog_bundle") {
+    return Boolean(draft.bundleComponents && draft.bundleComponents.length >= 2 && draft.addedProductIds.length > 0);
+  }
+  if (draft.candidateType === "lower_price_substitute") {
+    const targetProductId = draft.addedProductIds[0];
+    return Boolean(
+      targetProductId &&
+      snapshot.compatibilityRules.some(
+        (rule) =>
+          rule.relationshipType === "substitute_for" &&
+          (rule.sourceProductId === targetProductId || rule.targetProductId === targetProductId),
+      ),
+    );
+  }
+  if (draft.candidateType !== "compatible_cross_sell" || draft.addedProductIds.length !== 1) return false;
+
+  const addedProductId = draft.addedProductIds[0];
+  const originalProductIds = candidateProductIds.filter((productId) => productId !== addedProductId);
+  return originalProductIds.some((productId) =>
+    snapshot.compatibilityRules.some(
+      (rule) =>
+        rule.relationshipType === "complements" &&
+        rule.safetyAction === "allow" &&
+        ((rule.sourceProductId === productId && rule.targetProductId === addedProductId) ||
+          (rule.directionality === "bidirectional" &&
+            rule.sourceProductId === addedProductId &&
+            rule.targetProductId === productId)),
+    ),
+  );
+}
+
+function passesDiscountPolicy(snapshot: CatalogSnapshot, draft: CandidateDraft): boolean {
+  const discountedLines = draft.lines.filter((line) => (line.lineDiscountPaise ?? 0) > 0);
+  if (discountedLines.length === 0) return draft.discountTriggerId === null;
+  if (snapshot.discountPolicy.maximumDynamicDiscountsPerSession < 1) return false;
+  if (
+    !snapshot.discountPolicy.allowAdditionalDiscountOnPrepricedBundles &&
+    containsPrepricedBundle(snapshot, draft.lines)
+  ) return false;
+
+  const threshold = snapshot.discountPolicy.thresholdIncentives.find(
+    (incentive) => incentive.offerId === draft.discountTriggerId && incentive.enabled,
+  );
+  const trigger = snapshot.discountPolicy.triggers.find(
+    (item) => item.triggerId === draft.discountTriggerId && item.enabled,
+  );
+  if (!threshold && !trigger) return false;
+  if (!snapshot.discountPolicy.allowDiscountStacking && Number(Boolean(threshold)) + Number(Boolean(trigger)) > 1) {
+    return false;
+  }
+  if (
+    trigger &&
+    (!trigger.allowedDiscountBps.includes(draft.discountRateBps) ||
+      !snapshot.discountPolicy.discountLadderBps.includes(draft.discountRateBps))
+  ) return false;
+
+  return discountedLines.every((line) => {
+    const variant = variantOrThrow(snapshot, line.variantId);
+    const economics = snapshot.economics.get(line.variantId);
+    const lineSubtotal = variant.pricePaise * line.quantity;
+    return Boolean(
+      economics &&
+      (line.lineDiscountPaise ?? 0) * 10_000 <= lineSubtotal * economics.maxDiscountBps,
+    );
+  });
+}
+
+function containsPrepricedBundle(
+  snapshot: CatalogSnapshot,
+  lines: readonly PricedCandidateLine[],
+): boolean {
+  return lines.some((line) => {
+    const variant = snapshot.variants.get(line.variantId);
+    const product = variant ? snapshot.products.get(variant.productId) : null;
+    return product?.productType.toLowerCase() === "bundle";
+  });
+}
+
+function resolveRequiredBundleComponents(
+  snapshot: CatalogSnapshot,
+  lines: readonly PricedCandidateLine[],
+): Array<{ productId: string; variantId: string; quantity: number; active: boolean }> {
+  return lines.flatMap((line) => {
+    const variant = snapshot.variants.get(line.variantId);
+    const product = variant ? snapshot.products.get(variant.productId) : null;
+    if (product?.productType.toLowerCase() !== "bundle") return [];
+    return snapshot.bundleComponents
+      .filter((component) => component.bundleVariantId === line.variantId && component.required)
+      .map((component) => ({
+        productId: component.componentProductId,
+        variantId: component.componentVariantId,
+        quantity: component.quantity * line.quantity,
+        active: component.active,
+      }));
+  });
+}
+
+function sanitizeIdentifier(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
 function variantOrThrow(snapshot: CatalogSnapshot, variantId: string): ProductVariant {

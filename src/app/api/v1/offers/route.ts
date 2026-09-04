@@ -3,6 +3,12 @@ import type { OfferCandidate } from "@/domain/offers/select-offer";
 import { selectOffer, type CartLineInput } from "@/domain/offers/select-offer";
 import { extractFallbackIntent } from "@/domain/intent/fallback-intent";
 import { getCatalogSnapshot } from "@/server/catalog/file-catalog-repository";
+import { assertOfferDecisionSchema } from "@/server/offers/validate-offer-decision";
+import {
+  createShoppingSessionId,
+  getShoppingSessionId,
+  shoppingSessionCookie,
+} from "@/server/session/shopping-session";
 
 export const runtime = "nodejs";
 
@@ -19,6 +25,8 @@ export async function POST(request: Request) {
     const snapshot = await getCatalogSnapshot();
     const intent = extractFallbackIntent(message);
     const decision = selectOffer(snapshot, body.cartLines, intent);
+    const sessionId = getShoppingSessionId(request) ?? createShoppingSessionId();
+    assertOfferDecisionSchema(snapshot, decision, intent, sessionId);
     const selected = decision.candidates.find(
       (candidate) => candidate.candidateId === decision.selectedCandidateId,
     ) ?? decision.candidates[0];
@@ -29,6 +37,7 @@ export async function POST(request: Request) {
     return Response.json({
       decisionId: decision.decisionId,
       catalogVersion: decision.catalogVersion,
+      manifestVersion: snapshot.integrity.manifestVersion,
       selectedCandidateId: decision.selectedCandidateId,
       baselineCandidateId: decision.baselineCandidateId,
       evaluatedCartLines: body.cartLines,
@@ -38,6 +47,17 @@ export async function POST(request: Request) {
       customerConfirmationRequired: decision.customerConfirmationRequired,
       orderCreationAuthorized: decision.orderCreationAuthorized,
       intentSource: intent.source,
+      policy: {
+        status: selected.status === "rejected" ? "blocked" : "passed",
+        summary:
+          selected.status === "rejected"
+            ? "The current cart did not clear every required policy check. No offer or payment was authorized."
+            : "Catalog, stock, exclusions, compatibility, discount and contribution-profit checks passed.",
+        passedChecks: selected.guardResults.filter((result) => result.passed).map((result) => result.ruleId),
+        blockedReasonCodes: selected.rejectionReasonCodes,
+      },
+    }, {
+      headers: { "Set-Cookie": shoppingSessionCookie(sessionId) },
     });
   } catch {
     return Response.json(

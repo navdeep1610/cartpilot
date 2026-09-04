@@ -70,6 +70,7 @@ interface CustomerOfferCandidate {
 
 interface OfferResponse {
   decisionId: string;
+  manifestVersion: string;
   selectedCandidateId: string;
   baselineCandidateId: string;
   evaluatedCartLines: Array<{ variantId: string; quantity: number }>;
@@ -84,6 +85,12 @@ interface OfferResponse {
   };
   customerConfirmationRequired: true;
   orderCreationAuthorized: false;
+  policy: {
+    status: "passed" | "blocked";
+    summary: string;
+    passedChecks: string[];
+    blockedReasonCodes: string[];
+  };
 }
 
 interface CheckoutOrderResponse {
@@ -478,7 +485,13 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   async function beginTestCheckout() {
     const activeOffer = acceptedOffer ?? offer;
     const confirmedCandidate = acceptedOffer?.selected ?? offer?.baseline;
-    if (!activeOffer || !confirmedCandidate || !exactTotalConfirmed || checkoutStatus === "preparing") return;
+    if (
+      !activeOffer ||
+      !confirmedCandidate ||
+      activeOffer.policy.status !== "passed" ||
+      !exactTotalConfirmed ||
+      checkoutStatus === "preparing"
+    ) return;
     if (!profileStored || !isCompleteProfile(profile)) {
       setProfileDraft(profile);
       setCartOpen(false);
@@ -588,6 +601,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   const displayedTotal = acceptedOffer?.selected.totalPaise ?? offer?.baseline.totalPaise ?? cartSubtotal;
   const hasAdditionalOffer = offer && offer.selectedCandidateId !== offer.baselineCandidateId;
   const activeDecision = acceptedOffer ?? offer;
+  const policyPassed = activeDecision?.policy.status === "passed";
 
   return (
     <main id="top">
@@ -871,6 +885,15 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
 
             {offerStatus === "loading" && <div className="offer-loading"><Sparkles size={17} /> Checking valid bundles and offers...</div>}
             {offerStatus === "error" && <p className="offer-error">The offer check paused safely. Your cart has not changed.</p>}
+            {activeDecision && (
+              <div className={`policy-check ${activeDecision.policy.status}`}>
+                <ShieldCheck size={18} aria-hidden="true" />
+                <span>
+                  <strong>{policyPassed ? "Policy checks passed" : "Checkout paused by policy"}</strong>
+                  <small>{activeDecision.policy.summary}</small>
+                </span>
+              </div>
+            )}
             {hasAdditionalOffer && offer && (
               <section className="offer-card">
                 <span><Sparkles size={16} /> CartPilot found a stronger option</span>
@@ -891,10 +914,10 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
               <div className="grand-total"><strong>Total</strong><strong>{formatInr(displayedTotal)}</strong></div>
             </div>
             <label className="checkout-confirmation">
-              <input type="checkbox" checked={exactTotalConfirmed} onChange={(event) => setExactTotalConfirmed(event.target.checked)} />
+              <input type="checkbox" checked={exactTotalConfirmed} disabled={!policyPassed} onChange={(event) => setExactTotalConfirmed(event.target.checked)} />
               <span>I confirm this exact cart and total of <strong>{formatInr(displayedTotal)}</strong>.</span>
             </label>
-            <button className="checkout-button" type="button" onClick={beginTestCheckout} disabled={!activeDecision || !exactTotalConfirmed || checkoutStatus === "preparing"}>
+            <button className="checkout-button" type="button" onClick={beginTestCheckout} disabled={!activeDecision || !policyPassed || !exactTotalConfirmed || checkoutStatus === "preparing"}>
               {checkoutStatus === "preparing" ? "Preparing Test checkout..." : "Pay with Razorpay Test Mode"} <ArrowRight size={18} />
             </button>
             {checkoutMessage && <p className={`checkout-status ${checkoutStatus}`} role="status">{checkoutMessage}</p>}

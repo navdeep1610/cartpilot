@@ -21,4 +21,13 @@ describe("recommendRoutine", () => {
     expect(result.items.some((item) => item.productId === "CLN-002")).toBe(true);
     expect(result.items.every((item) => snapshot.products.has(item.productId))).toBe(true);
   });
+
+  it("never recommends an explicitly excluded product type or ingredient", () => {
+    const result = recommendRoutine(
+      snapshot,
+      extractFallbackIntent("Build a dry-skin routine without serum and avoid retinol"),
+    );
+    expect(result.items.every((item) => item.productType.toLowerCase() !== "serum")).toBe(true);
+    expect(result.items.every((item) => item.productId !== "SRM-005")).toBe(true);
+  });
 });

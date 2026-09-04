@@ -1,6 +1,6 @@
 {
   "policy_id": "CARTPILOT-PROFIT-POLICY",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "draft_demo",
   "effective_date": "2026-08-24",
   "currency": "INR",
@@ -189,7 +189,7 @@
   },
   "ranking": {
     "policy_id": "CARTPILOT-DETERMINISTIC-OFFER-RANKING",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "score_scale_factor": 10,
     "score_unit": "deterministic_ranking_unit",
     "score_is_probability": false,
