@@ -1,8 +1,10 @@
 # CartPilot — Product and Build Plan
 
-Status: Profit strategy and skincare domain approved; catalog design is the next planning gate. Application coding is not authorised yet.
+Status: Baseline application implemented; Phase 1 hackathon story and governance freeze completed on 4 September 2026. Submission hardening remains in progress.
 
-Date: 24 August 2026
+Original planning date: 24 August 2026
+
+Latest status review: 4 September 2026
 
 ## 1. Project decision
 
@@ -31,7 +33,7 @@ A small online merchant who wants higher cart value without unsafe or manipulati
 
 ### Confirmed demo merchant
 
-A fictional skincare store with 15–25 products across cleansing, toning, treatment, moisturizing, sun protection, and optional exfoliation. The catalog will support routine completion, complementary cross-selling, substitutes, incompatibilities, margins, inventory, and bounded discount rules.
+A fictional skincare store with 40 products and 74 variants across cleansing, toning, treatment, moisturizing, sun protection, and optional exfoliation. The catalog supports routine completion, complementary cross-selling, substitutes, incompatibilities, margins, inventory, and bounded discount rules.
 
 ## 4. Product hypothesis
 
@@ -627,30 +629,33 @@ State the merchant benefit and one clear next extension, such as Hinglish or an 
 - AI decision: Hosted LLM for understanding and explanation; no separately trained offer model until genuine data exists.
 - Commercial methods: Compatible routine bundles, complementary cross-sells, substitutes, thresholds, and bounded dynamic discounts.
 
-### Gate B — Catalog design — next
+### Gate B — Catalog design — complete for demo
 
-Approve product categories, routine steps, product fields, economics, compatibility relationships, warning fields, bundle rules, discount ladder, and the initial 15–25 catalog items.
+The versioned demo snapshot contains 40 products, 74 variants, merchant economics, compatibility relationships, warning fields, five bundles, a discount ladder, profit policy and 35 evaluation scenarios. Domain review remains required before any non-demo use.
 
-### Gate C — Resource readiness
+### Gate C — Resource readiness — partial
 
-All required accounts are accessible and test credentials are stored privately. The LLM provider is selected.
+Supabase, Gemini and Razorpay configuration hooks exist. The merchant allowlist, stable production deployment, webhook delivery and provider connectivity still require release verification.
 
-### Gate D — UX and architecture freeze
+### Gate D — UX and architecture freeze — complete
 
-Approve wireframes, data flow, money-action policy, data entities, and acceptance tests.
+Shopper and merchant interfaces, data flow, money-action policy, entities and acceptance tests are documented and implemented as a baseline.
 
-### Gate E — Authorise implementation
+### Gate E — Authorise implementation — complete
 
-Only after the catalog, resources, UX, architecture, and acceptance criteria are approved should application code be created.
+The baseline application is implemented. On 4 September 2026 the owner authorised the Phase 1 hackathon-readiness upgrade and direct GitHub delivery.
 
 ### Gate F — Submission readiness
 
 The deployed demo, test results, repository, documentation, and five-minute video all satisfy the definition of done.
 
-## 21. Decisions still needed from the project owner
+## 21. Remaining release decisions
 
-- Approve the detailed skincare catalog design and initial products.
-- Define the initial merchant economics and discount ladder.
-- Select the LLM provider based on existing access or credits.
-- Confirm which required accounts are already available.
-- Confirm the application deadline displayed in the official form.
+- Approve the demo catalog and synthetic merchant economics as submission inputs.
+- Decide whether expert skincare review will occur or remain a prominent demo limitation.
+- Confirm the stable Vercel URL and Razorpay Test webhook delivery.
+- Configure and verify the merchant-admin email.
+- Confirm the buildathon deadline, eligibility and submission fields.
+- Approve the final evaluation report and five-minute demo recording.
+
+The live compliance status and post-audit delivery sequence are maintained in `HACKATHON_REQUIREMENTS.md`.

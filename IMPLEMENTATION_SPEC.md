@@ -2,7 +2,8 @@
 
 Document version: 1.0.0  
 Planning snapshot: 24 August 2026  
-Status: Architecture specified; application implementation is not yet authorised  
+Status: Baseline application implemented; Phase 1 hackathon story and governance freeze completed 4 September 2026
+
 Target: Razorpay AI Buildathon — Track 01, AI Growth & Agentic Commerce
 
 ## 1. Purpose
@@ -11,7 +12,7 @@ This document is the build contract for CartPilot, a conversational skincare sal
 
 The finished MVP must be a working deployed product using Razorpay Test Mode APIs. Every commercial action must be explainable, bounded, customer-gated, deterministic, and auditable. It must demonstrate one successful payment and one payment failure that is handled without marking the order paid or authorising fulfilment.
 
-This file specifies what will be implemented after the project owner explicitly authorises application coding. It does not itself authorise code creation.
+This file remains the detailed engineering contract. The current compliance state, approved upgrade sequence and release gates are maintained in `HACKATHON_REQUIREMENTS.md`; where this original specification describes a future implementation task, that status matrix is authoritative.
 
 ## 2. Locked product decisions
 
@@ -925,7 +926,9 @@ Every pull request and release commit must run:
 
 A failing money, schema, catalog, compatibility, discount, state, signature, idempotency, or secret test blocks deployment.
 
-## 27. Implementation phases and exit criteria
+## 27. Original implementation phases and current upgrade mapping
+
+The phases below preserve the original implementation plan. The baseline application now exists. Post-audit work follows the numbered upgrade programme in `HACKATHON_REQUIREMENTS.md`, beginning with the completed story and governance freeze and then commercial-policy correctness.
 
 ### Phase 0 — Owner approval and resources
 
@@ -1044,7 +1047,7 @@ Exit: all MVP definition-of-done items pass on the deployed URL.
 
 ## 29. Remaining owner/resource gates
 
-Application code must not begin until the project owner supplies or approves:
+Application implementation is authorised. Submission release remains blocked until the project owner supplies or approves:
 
 - [ ] Explicit approval of the forty-product demo catalog.
 - [ ] Explicit approval that merchant economics and policies are synthetic demo assumptions.
@@ -1057,7 +1060,7 @@ Application code must not begin until the project owner supplies or approves:
 - [ ] Merchant-admin email for the protected dashboard.
 - [ ] Approved shopper and merchant UI wireframes.
 - [ ] Confirmed buildathon application deadline and eligibility.
-- [ ] Explicit instruction: "Authorise implementation."
+- [x] Explicit instruction to begin the Phase 1 hackathon-readiness upgrade and deliver it to GitHub.
 
 Secrets must be entered privately into local/Vercel/Supabase configuration and never pasted into a tracked planning or source file.
 
@@ -1107,4 +1110,3 @@ Until then, the correct next action is resource confirmation and design review, 
 - [Supabase Postgres](https://supabase.com/docs/guides/database/overview)
 - [Supabase database connections](https://supabase.com/docs/guides/database/connecting-to-postgres)
 - [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
-

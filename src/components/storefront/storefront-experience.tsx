@@ -665,17 +665,17 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
 
       <section className="hero">
         <div className="hero-copy">
-          <p className="eyebrow">Skincare made simpler</p>
-          <h1>Build a routine that fits your skin and your day.</h1>
+          <p className="eyebrow">Track 01 · AI Growth &amp; Agentic Commerce</p>
+          <h1>An AI sales agent for better routines and stronger carts.</h1>
           <p className="hero-lede">
-            Browse reliable essentials or tell CartPilot what your skin needs. Every suggestion comes from the real merchant catalog and passes compatibility, stock, and value checks.
+            CartPilot turns a shopper&apos;s goal into a compatible, profit-positive offer. AI understands the request; merchant-controlled rules own products, prices, discounts and payment authority.
           </p>
           <div className="hero-actions">
             <a className="button button-dark" href="#shop">Shop essentials</a>
             <a className="button button-light" href="#assistant">Ask CartPilot</a>
           </div>
           <div className="trust-row" aria-label="Store promises">
-            <span>Catalog-backed</span><span>Explainable offers</span><span>Razorpay Test Mode</span>
+            <span>Explainable</span><span>Bounded</span><span>Customer-gated</span><span>Razorpay Test Mode</span>
           </div>
         </div>
 
@@ -784,18 +784,20 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
       </section>
 
       <section className="how-section" id="how-it-works">
-        <p className="eyebrow">How CartPilot grows a basket</p>
-        <h2>Helpful to the shopper. Profitable for the merchant.</h2>
+        <p className="eyebrow">The hackathon commerce contract</p>
+        <h2>Every money action has a reason, a limit and a human gate.</h2>
+        <p className="how-intro">CartPilot follows one clear Track 01 route: grow merchant contribution profit with relevant bundles and cross-sells on Razorpay Test Mode.</p>
         <div className="how-grid">
-          <article><span>01</span><h3>Understand</h3><p>Gemini turns the shopper&apos;s words into structured intent. It never decides prices.</p></article>
-          <article><span>02</span><h3>Validate</h3><p>The backend checks catalog fit, compatibility, inventory, customer budget, and merchant profit rules.</p></article>
-          <article><span>03</span><h3>Confirm</h3><p>The best valid choice is explained. No order is created until the shopper confirms the exact total.</p></article>
+          <article><span>01 · Explainable</span><h3>Understand</h3><p>AI turns the shopper&apos;s words into structured intent and a clear recommendation. It never decides prices.</p></article>
+          <article><span>02 · Bounded</span><h3>Validate</h3><p>The backend checks catalog fit, compatibility, inventory, budget, discounts and merchant profit rules.</p></article>
+          <article><span>03 · Gated</span><h3>Confirm</h3><p>The shopper sees the exact cart and total. No Razorpay order is created until they explicitly approve it.</p></article>
+          <article><span>04 · Audited</span><h3>Verify</h3><p>Confirmed orders carry decision and payment evidence, and fulfilment remains blocked until server-verified capture.</p></article>
         </div>
       </section>
 
       <footer>
         <div><div className="brand">Cart<span>Pilot</span></div><p>Smarter skincare. Stronger carts.</p></div>
-        <p>Razorpay AI Buildathon demo · Test Mode only</p>
+        <p>Track 01 · AI Growth &amp; Agentic Commerce · Razorpay Test Mode only</p>
       </footer>
 
       {(cartOpen || profileOpen) && (

@@ -3,7 +3,7 @@
   "manifest_version": "1.0.1",
   "catalog_version": "1.0.0",
   "snapshot_date": "2026-08-24",
-  "status": "preimplementation_draft",
+  "status": "implementation_audit_in_progress",
   "environment": "test",
   "merchant_id": "CARTPILOT-DEMO-SKINCARE-MERCHANT",
   "merchant_display_name": "CartPilot Demo Skincare Store",
@@ -626,7 +626,7 @@
       "version": "current_planning_snapshot",
       "required_for_runtime": false,
       "required_for_implementation_review": true,
-      "sha256": "81982e1e81437d8f00dd01792a0128c0069bc5ea2573b0a480e708d15eb8abfc"
+      "sha256": "c50520ce122aef3ce04d7d6461de569475247236c26725d18f6fba4e803438c8"
     },
     {
       "resource_id": "implementation_spec",
@@ -635,7 +635,7 @@
       "version": "1.0.0",
       "required_for_runtime": false,
       "required_for_implementation_review": true,
-      "sha256": "3c27619ff84eb2fc9028dc6b8092fe9aff9ccfe786bffc82106fd54f9b2b72f1"
+      "sha256": "103dba34bb7cb8d79414f324deee642e327610a657f1430c6e548ad7d812d935"
     }
   ],
   "normalization_contract": {
