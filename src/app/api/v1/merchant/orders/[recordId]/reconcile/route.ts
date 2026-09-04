@@ -1,10 +1,8 @@
 import {
-  appendAuditEvent,
   DatabaseConfigurationError,
   findPaymentRecord,
-  getSupabaseAdmin,
-  type StoredPaymentRecord,
 } from "@/server/database/supabase-admin";
+import { applyPaymentReconciliation } from "@/server/payments/atomic-payment-store";
 import { guardMerchantApi } from "@/server/auth/merchant-authorization";
 import {
   fetchRazorpayTestPaymentEvidence,
@@ -53,7 +51,13 @@ export async function POST(
     const decision = reconcileRazorpayPayment(record, evidence);
 
     if (!decision.evidenceMatched) {
-      await appendRecheckAudit(record, "failure", decision.reasonCode, evidence, false);
+      await applyPaymentReconciliation({
+        record,
+        nextState: record.state,
+        reasonCode: decision.reasonCode,
+        update: {},
+        outcome: "failure",
+      });
       return safeResponse(
         {
           error: "PAYMENT_EVIDENCE_MISMATCH",
@@ -66,35 +70,14 @@ export async function POST(
 
     let storedRecord = record;
     if (decision.update) {
-      let updateQuery = getSupabaseAdmin()
-        .from("payment_records")
-        .update({ ...decision.update, updated_at: new Date().toISOString() })
-        .eq("payment_record_id", record.payment_record_id);
-      if (decision.status !== "captured") updateQuery = updateQuery.eq("capture_confirmed", false);
-      const { data, error } = await updateQuery.select("*").maybeSingle();
-      if (error) throw error;
-      if (!data) {
-        const concurrentRecord = await findPaymentRecord(record.payment_record_id);
-        if (!concurrentRecord) throw new Error("Payment record changed during reconciliation");
-        storedRecord = concurrentRecord;
-      } else {
-        storedRecord = data as StoredPaymentRecord;
-        if (record.state !== decision.nextState) {
-          const { error: transitionError } = await getSupabaseAdmin().from("payment_transitions").insert({
-            payment_record_id: record.payment_record_id,
-            from_state: record.state,
-            to_state: decision.nextState,
-            trigger: "merchant_api_recheck",
-            source: "razorpay_payments_api",
-            applied: true,
-            reason_code: decision.reasonCode,
-          });
-          if (transitionError) throw transitionError;
-        }
-      }
+      storedRecord = await applyPaymentReconciliation({
+        record,
+        nextState: decision.nextState,
+        reasonCode: decision.reasonCode,
+        update: decision.update,
+        outcome: "success",
+      });
     }
-
-    await appendRecheckAudit(record, "success", decision.reasonCode, evidence, storedRecord.fulfilment_authorized);
     return safeResponse({
       reconciled: decision.status === "captured" || decision.status === "failed" || decision.status === "refunded",
       state: storedRecord.state,
@@ -112,30 +95,6 @@ export async function POST(
     }
     return safeResponse({ error: "PAYMENT_RECHECK_FAILED", message: "Razorpay could not be checked safely just now. Try again shortly." }, 502);
   }
-}
-
-async function appendRecheckAudit(
-  record: StoredPaymentRecord,
-  outcome: "success" | "failure",
-  reasonCode: string,
-  evidence: Awaited<ReturnType<typeof fetchRazorpayTestPaymentEvidence>>,
-  fulfilmentAuthorized: boolean,
-) {
-  await appendAuditEvent({
-    traceId: record.payment_record_id,
-    eventType: outcome === "success" ? "payment.api_recheck_completed" : "payment.api_recheck_rejected",
-    actorType: "merchant",
-    outcome,
-    reasonCode,
-    resourceId: record.payment_record_id,
-    evidence: {
-      razorpayPaymentStatus: evidence.payment.status,
-      razorpayOrderStatus: evidence.order.status,
-      amountMatched: evidence.payment.amountPaise === record.amount_paise,
-      captureConfirmed: evidence.payment.captured,
-      fulfilmentAuthorized,
-    },
-  });
 }
 
 function safeResponse(body: Record<string, unknown>, status = 200) {

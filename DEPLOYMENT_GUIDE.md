@@ -34,11 +34,10 @@ Switch the Razorpay dashboard to **Test Mode**.
 ## 2. Create the Supabase tables
 
 1. Open **Supabase → SQL Editor → New query**.
-2. Open `supabase/migrations/0001_checkout_and_audit.sql` from this project.
-3. Copy the complete SQL file into the Supabase query editor.
-4. Select **Run** once.
+2. Run the complete migration files in filename order: `0001_checkout_and_audit.sql`, `0002_customer_profiles.sql`, then `0003_atomic_payments.sql`.
+3. Apply each migration once and do not skip the Phase 3 atomic-payment migration.
 
-This creates private decision, payment, webhook, transition, and audit tables. Browser users receive no direct access to these tables.
+This creates private decision, customer, payment, webhook, transition, and audit tables plus the transactional payment functions. Browser users receive no direct access to these tables.
 
 ## 3. Test locally
 
@@ -86,6 +85,7 @@ Use the same webhook secret stored in `RAZORPAY_WEBHOOK_SECRET`. Do not use a te
 - An order is created only after exact-total customer confirmation.
 - The browser callback verifies authenticity but cannot authorise fulfilment.
 - A signed capture webhook and matching amount/order evidence are required for fulfilment.
+- Duplicate confirmation, order and callback requests are idempotent, and webhook receipt plus state changes commit transactionally.
 - Failed payments retain the cart and keep fulfilment blocked.
 - Merchant economics and secret keys are never returned by customer APIs.
 - Merchant pages, customer records, order APIs and payment reconciliation require a verified Supabase Auth session for the configured `MERCHANT_EMAIL`.

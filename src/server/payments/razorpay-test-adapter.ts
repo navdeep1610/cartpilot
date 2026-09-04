@@ -38,6 +38,39 @@ export async function createRazorpayTestOrder(input: {
   });
 }
 
+export interface RazorpayTestOrderEvidence {
+  id: string;
+  amountPaise: number;
+  currency: string;
+  receipt: string;
+  status: "created" | "attempted" | "paid";
+}
+
+export async function findRazorpayTestOrderByReceipt(receipt: string): Promise<RazorpayTestOrderEvidence | null> {
+  if (!/^ORD-[A-Z0-9-]{8,80}$/.test(receipt) || receipt.length > 40) {
+    throw new Error("Invalid Razorpay receipt");
+  }
+  const result = await getRazorpayClient().orders.all({ receipt, count: 10 });
+  return selectRazorpayOrderByReceipt(result.items, receipt);
+}
+
+export function selectRazorpayOrderByReceipt(
+  orders: Array<{ id: string; amount: string | number; currency: string; receipt?: string; status: "created" | "attempted" | "paid" }>,
+  receipt: string,
+): RazorpayTestOrderEvidence | null {
+  const matches = orders.filter((order) => order.receipt === receipt);
+  if (matches.length === 0) return null;
+  if (matches.length !== 1) throw new Error("Razorpay receipt resolved to multiple orders");
+  const order = matches[0];
+  return {
+    id: order.id,
+    amountPaise: toIntegerAmount(order.amount),
+    currency: order.currency,
+    receipt,
+    status: order.status,
+  };
+}
+
 export interface RazorpayTestPaymentEvidence {
   payment: {
     id: string;

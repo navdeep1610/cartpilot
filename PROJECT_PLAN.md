@@ -1,6 +1,6 @@
 # CartPilot — Product and Build Plan
 
-Status: Baseline application implemented; Phase 2 commercial-policy correctness completed on 4 September 2026. Atomic payment hardening is next.
+Status: Baseline application implemented; Phase 3 atomic payment and webhook reliability completed on 4 September 2026. Complete audit chaining is next.
 
 Original planning date: 24 August 2026
 

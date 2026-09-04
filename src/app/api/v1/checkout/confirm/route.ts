@@ -18,6 +18,7 @@ import {
 } from "@/server/session/shopping-session";
 import { getCustomerProfileId } from "@/server/session/customer-profile-session";
 import { assertOfferDecisionSchema } from "@/server/offers/validate-offer-decision";
+import { guardCustomerMutation, MutationRequestError } from "@/server/security/mutation-request";
 
 export const runtime = "nodejs";
 
@@ -32,6 +33,7 @@ interface ConfirmationBody {
 
 export async function POST(request: Request) {
   try {
+    const { idempotencyKey, requestId } = guardCustomerMutation(request);
     const body = (await request.json()) as ConfirmationBody;
     const submittedCustomer = normalizeCustomerProfile(body.customer);
     if (
@@ -138,6 +140,7 @@ export async function POST(request: Request) {
         customerConfirmedCandidateId: confirmedCandidate.candidateId,
         customerAcceptedEngineOffer: confirmedCandidate.candidateId === decision.selectedCandidateId,
       },
+      p_idempotency_key: idempotencyKey,
     };
     let record = await confirmCheckoutForSession(responseSessionId, confirmationParams);
 
@@ -159,10 +162,14 @@ export async function POST(request: Request) {
         customerConfirmed: true,
         orderCreationAuthorized: true,
         fulfilmentAuthorized: false,
+        requestId,
       },
       { status: 201, headers: { "Set-Cookie": shoppingSessionCookie(responseSessionId) } },
     );
   } catch (error) {
+    if (error instanceof MutationRequestError) {
+      return safeError(error.code, error.message, error.status, false);
+    }
     if (error instanceof DatabaseConfigurationError) {
       return safeError(
         "SUPABASE_SETUP_REQUIRED",

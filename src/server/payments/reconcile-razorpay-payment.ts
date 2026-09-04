@@ -52,7 +52,7 @@ export function reconcileRazorpayPayment(
         razorpay_order_status: evidence.order.status,
         razorpay_payment_id: evidence.payment.id,
         capture_confirmed: true,
-        capture_confirmation_source: "razorpay_api_recheck",
+        capture_confirmation_source: "razorpay_api_fetch",
         fulfilment_authorized: orderPaid,
         failure_code: null,
       },

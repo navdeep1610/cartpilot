@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   PaymentConfigurationError,
+  selectRazorpayOrderByReceipt,
   verifyRazorpayPaymentCallback,
   verifyRazorpayWebhook,
 } from "./razorpay-test-adapter";
@@ -44,5 +45,27 @@ describe("Razorpay Test Mode verification", () => {
       paymentId: "pay_test_456",
       signature: "0".repeat(64),
     })).toThrow(PaymentConfigurationError);
+  });
+
+  it("recovers one exact Razorpay order from an ambiguous create result", () => {
+    const recovered = selectRazorpayOrderByReceipt([
+      { id: "order_other", amount: 50000, currency: "INR", receipt: "ORD-OTHER-12345678", status: "created" },
+      { id: "order_match", amount: 139900, currency: "INR", receipt: "ORD-MATCH-12345678", status: "attempted" },
+    ], "ORD-MATCH-12345678");
+    expect(recovered).toEqual({
+      id: "order_match",
+      amountPaise: 139900,
+      currency: "INR",
+      receipt: "ORD-MATCH-12345678",
+      status: "attempted",
+    });
+  });
+
+  it("refuses an ambiguous duplicate receipt instead of guessing", () => {
+    const duplicate = { amount: 139900, currency: "INR", receipt: "ORD-MATCH-12345678", status: "created" as const };
+    expect(() => selectRazorpayOrderByReceipt([
+      { ...duplicate, id: "order_one" },
+      { ...duplicate, id: "order_two" },
+    ], "ORD-MATCH-12345678")).toThrow(/multiple orders/);
   });
 });

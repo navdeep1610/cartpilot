@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { PublicCatalogProduct, PublicCatalogResponse } from "@/domain/catalog/public-catalog";
 import {
   normalizeCustomerProfile,
@@ -221,6 +221,12 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   const [exactTotalConfirmed, setExactTotalConfirmed] = useState(false);
   const [checkoutStatus, setCheckoutStatus] = useState<"idle" | "preparing" | "waiting" | "success" | "failure">("idle");
   const [checkoutMessage, setCheckoutMessage] = useState<string | null>(null);
+  const checkoutAttemptRef = useRef<{
+    fingerprint: string;
+    confirmationKey: string;
+    orderKey: string;
+    verificationKey: string;
+  } | null>(null);
 
   const categories = useMemo(
     () => ["All", ...new Set(catalog.products.map((product) => product.productType))],
@@ -501,10 +507,20 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     }
     setCheckoutStatus("preparing");
     setCheckoutMessage("Revalidating your exact cart and total...");
+    const fingerprint = `${activeOffer.decisionId}:${confirmedCandidate.candidateId}:${confirmedCandidate.totalPaise}`;
+    if (checkoutAttemptRef.current?.fingerprint !== fingerprint) {
+      checkoutAttemptRef.current = {
+        fingerprint,
+        confirmationKey: `confirm:${crypto.randomUUID()}`,
+        orderKey: `order:${crypto.randomUUID()}`,
+        verificationKey: `verify:${crypto.randomUUID()}`,
+      };
+    }
+    const attempt = checkoutAttemptRef.current;
     try {
       const confirmationResponse = await fetch("/api/v1/checkout/confirm", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.confirmationKey },
         body: JSON.stringify({
           evaluatedCartLines: activeOffer.evaluatedCartLines,
           message: lastIntentMessage,
@@ -519,7 +535,10 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
         throw new Error(confirmation.message || "The cart could not be confirmed.");
       }
 
-      const orderResponse = await fetch(`/api/v1/payment-records/${confirmation.paymentRecordId}/order`, { method: "POST" });
+      const orderResponse = await fetch(`/api/v1/payment-records/${confirmation.paymentRecordId}/order`, {
+        method: "POST",
+        headers: { "Idempotency-Key": attempt.orderKey },
+      });
       const order = (await orderResponse.json()) as CheckoutOrderResponse | { message?: string };
       if (!orderResponse.ok || !("orderId" in order)) {
         throw new Error((order as { message?: string }).message || "Test checkout could not be opened.");
@@ -545,7 +564,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           setCheckoutMessage("Payment response received. Verifying capture on the server...");
           const verificationResponse = await fetch(`/api/v1/payment-records/${order.paymentRecordId}/verify`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.verificationKey },
             body: JSON.stringify(callback),
           });
           const verification = (await verificationResponse.json()) as { message?: string };
@@ -921,7 +940,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
               {checkoutStatus === "preparing" ? "Preparing Test checkout..." : "Pay with Razorpay Test Mode"} <ArrowRight size={18} />
             </button>
             {checkoutMessage && <p className={`checkout-status ${checkoutStatus}`} role="status">{checkoutMessage}</p>}
-            <p className="checkout-note"><ShieldCheck size={15} /> No real money will be charged. Unpaid checkouts time out after one hour, and fulfilment stays blocked until a signed capture event is verified.</p>
+            <p className="checkout-note"><ShieldCheck size={15} /> Atomic checkout protection keeps one confirmed cart tied to one Razorpay order. Duplicate clicks and webhook replays cannot create a second fulfilment.</p>
           </>
         )}
       </aside>

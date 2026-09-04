@@ -31,7 +31,7 @@ Primary business measure: estimated contribution-profit uplift per shopping sess
 | Explainable | Partial | Customer offer reasons and merchant reason codes exist | Show every candidate, calculation, gate and rejection in merchant audit |
 | Bounded | Implemented | Runtime-validated catalog snapshots, fail-closed compatibility, component inventory, exclusions, discount guards, relevance, cross-sell limits and profit floors are enforced | Preserve with end-to-end regression coverage |
 | Customer-gated | Implemented | Exact revalidated cart and total are required before order creation | Add end-to-end regression coverage |
-| Payment-gated | Implemented with hardening required | Fulfilment requires capture plus paid-order evidence | Make webhook/state writes atomic and test replay/out-of-order delivery |
+| Payment-gated | Implemented | Transactional payment claims and transitions require matching captured-payment plus paid-order evidence | Preserve with end-to-end Razorpay Test Mode evidence |
 | Audit trail | Partial | Confirmed checkouts and payment events are stored | Record the complete intent-to-fulfilment chain with append-only integrity |
 | Graceful failure | Partial | Gemini fallback, safe API errors, retained cart and blocked fulfilment exist | Demonstrate Razorpay failure, explicit safe retry and zero duplicate fulfilment |
 | Merchant growth evidence | Not yet complete | Profit calculations exist in the engine | Run and publish all 35 evaluation scenarios and aggregate metrics |
@@ -64,9 +64,25 @@ Commercial-policy correctness completed before payment/audit expansion:
 
 Phase 2 exit criterion: no recommendation or offer can bypass a catalog, compatibility, inventory, budget, discount or contribution-profit rule.
 
-## Next release gate: Phase 3
+## Phase 3 deliverables
 
-Atomic payment and webhook reliability comes next: one confirmed cart must map to one recoverable Razorpay order, duplicate or out-of-order events must be idempotent, and related payment state changes must commit transactionally.
+Atomic payment and webhook reliability completed before expanding the audit system:
+
+- [x] Make one confirmed cart map to one payment record and one Razorpay order claim.
+- [x] Require bounded idempotency keys on customer payment mutations.
+- [x] Commit order claims, order results, callbacks, timeouts and reconciliation with their transition and audit evidence.
+- [x] Verify raw webhook signatures before parsing or persistence.
+- [x] Deduplicate webhook event IDs inside the same transaction as payment-state changes.
+- [x] Protect captured state from duplicate or out-of-order failure and authorization events.
+- [x] Require both captured-payment and paid-order evidence before opening fulfilment.
+- [x] Mark ambiguous Razorpay order creation as reconciliation-required rather than creating again.
+- [x] Add regression coverage for both webhook arrival orders and monotonic state protection.
+
+Phase 3 exit criterion: a repeated customer mutation or webhook cannot create a second order, downgrade captured money state, or authorize fulfilment twice.
+
+## Next release gate: Phase 4
+
+The complete intent-to-fulfilment audit trail comes next: every material decision and money event must validate against the audit schema, carry an atomic sequence and tamper-evident hash chain, and be reconstructable in the merchant view.
 
 ## Submission definition of done
 

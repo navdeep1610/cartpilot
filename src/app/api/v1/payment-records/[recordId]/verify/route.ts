@@ -1,11 +1,11 @@
 import {
-  appendAuditEvent,
   DatabaseConfigurationError,
   findPaymentRecord,
-  getSupabaseAdmin,
 } from "@/server/database/supabase-admin";
+import { applyPaymentCallback } from "@/server/payments/atomic-payment-store";
 import { PaymentConfigurationError, verifyRazorpayPaymentCallback } from "@/server/payments/razorpay-test-adapter";
 import { getShoppingSessionId } from "@/server/session/shopping-session";
+import { guardCustomerMutation, MutationRequestError } from "@/server/security/mutation-request";
 
 export const runtime = "nodejs";
 
@@ -15,6 +15,7 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
   if (!sessionId) return safeError("SESSION_REQUIRED", "Your checkout session expired.", 401, true);
 
   try {
+    const { idempotencyKey } = guardCustomerMutation(request);
     const body = (await request.json()) as Record<string, unknown>;
     const paymentId = body.razorpay_payment_id;
     const orderId = body.razorpay_order_id;
@@ -34,52 +35,32 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
     if (!record || !record.razorpay_order_id) return safeError("PAYMENT_RECORD_NOT_FOUND", "The payment record could not be found.", 404, false);
     const orderMatches = orderId === record.razorpay_order_id;
     const signatureValid = orderMatches && verifyRazorpayPaymentCallback({ orderId: record.razorpay_order_id, paymentId, signature });
-    const admin = getSupabaseAdmin();
-    const nextState = signatureValid ? "callback_verified" : "signature_verification_failed";
     const reasonCode = signatureValid ? "CHECKOUT_CALLBACK_VERIFIED" : "PAYMENT_SIGNATURE_INVALID";
-
-    const { error: updateError } = await admin
-      .from("payment_records")
-      .update({
-        state: nextState,
-        callback_verified: signatureValid,
-        razorpay_payment_id: signatureValid ? paymentId : null,
-        fulfilment_authorized: false,
-        failure_code: signatureValid ? null : reasonCode,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("payment_record_id", recordId)
-      .eq("session_id", sessionId);
-    if (updateError) throw updateError;
-    await admin.from("payment_transitions").insert({
-      payment_record_id: recordId,
-      from_state: record.state,
-      to_state: nextState,
-      trigger: "checkout_callback",
-      source: "browser_callback",
-      applied: true,
-      reason_code: reasonCode,
-    });
-    await appendAuditEvent({
-      traceId: recordId,
-      eventType: signatureValid ? "payment.callback_verified" : "payment.callback_rejected",
-      actorType: "payment_provider",
-      outcome: signatureValid ? "success" : "failure",
+    const storedRecord = await applyPaymentCallback({
+      recordId,
+      sessionId,
+      paymentId,
+      signatureValid,
       reasonCode,
-      resourceId: recordId,
-      evidence: { orderMatched: orderMatches, callbackVerified: signatureValid, fulfilmentAuthorized: false },
+      idempotencyKey,
     });
 
     if (!signatureValid) return safeError("PAYMENT_SIGNATURE_INVALID", "The payment response could not be verified. Fulfilment remains blocked.", 400, false);
+    if (storedRecord.manual_review_required) {
+      return safeError("PAYMENT_ID_CONFLICT", "The payment reference needs manual reconciliation. Fulfilment remains blocked.", 409, false);
+    }
     return Response.json({
       paymentRecordId: recordId,
-      state: "callback_verified",
-      callbackVerified: true,
-      captureConfirmationPending: true,
-      fulfilmentAuthorized: false,
-      message: "Payment response verified. Waiting for server-side capture confirmation.",
+      state: storedRecord.state,
+      callbackVerified: storedRecord.callback_verified,
+      captureConfirmationPending: !storedRecord.capture_confirmed,
+      fulfilmentAuthorized: storedRecord.fulfilment_authorized,
+      message: storedRecord.fulfilment_authorized
+        ? "Payment and capture are verified. The demo fulfilment gate is open."
+        : "Payment response verified. Waiting for server-side capture confirmation.",
     });
   } catch (error) {
+    if (error instanceof MutationRequestError) return safeError(error.code, error.message, error.status, false);
     if (error instanceof PaymentConfigurationError) return safeError("RAZORPAY_SETUP_REQUIRED", "Razorpay Test Mode verification is unavailable.", 503, true);
     if (error instanceof DatabaseConfigurationError) return safeError("SUPABASE_SETUP_REQUIRED", "Secure payment storage is unavailable.", 503, true);
     return safeError("CALLBACK_VERIFICATION_FAILED", "The payment response could not be verified safely.", 503, true);

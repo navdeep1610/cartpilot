@@ -32,7 +32,7 @@ The baseline application is implemented and builds successfully. A September 202
 
 1. Hackathon story and governance freeze — complete in this release.
 2. Commercial-policy correctness and catalog validation — complete in this release.
-3. Transactional payment and webhook reliability.
+3. Transactional payment and webhook reliability — complete in this release.
 4. Complete intent-to-fulfilment audit trail.
 5. Failure-first customer recovery flow.
 6. Thirty-five-scenario growth evaluation and merchant evidence.
@@ -72,7 +72,7 @@ pnpm test
 pnpm build
 ```
 
-The Phase 2 release passes lint, type checking, 40 unit and policy-regression tests, runtime integrity checks and the production build. Atomic payments, end-to-end failure recovery and the full evaluation suite remain release gates rather than completed claims.
+The Phase 3 release passes lint, type checking, 52 unit and regression tests, runtime integrity checks and the production build. Payment claims, order finalization, callback evidence, webhook deduplication, reconciliation and timeouts now commit through transactional Supabase functions. End-to-end failure recovery, complete audit chaining and the full evaluation suite remain later release gates rather than completed claims.
 
 ## Demo path
 

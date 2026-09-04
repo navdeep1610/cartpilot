@@ -43,6 +43,11 @@ export interface StoredPaymentRecord {
   fulfilment_authorized: boolean;
   failure_code: string | null;
   order_creation_claimed_at: string | null;
+  confirmation_idempotency_key: string;
+  order_creation_idempotency_key: string | null;
+  callback_idempotency_key: string | null;
+  state_version: number;
+  manual_review_required: boolean;
   customer_confirmed_at: string;
   created_at: string;
   updated_at: string;

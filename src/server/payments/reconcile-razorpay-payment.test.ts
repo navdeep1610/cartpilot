@@ -11,7 +11,7 @@ describe("reconcileRazorpayPayment", () => {
     expect(decision.update).toMatchObject({
       capture_confirmed: true,
       fulfilment_authorized: true,
-      capture_confirmation_source: "razorpay_api_recheck",
+      capture_confirmation_source: "razorpay_api_fetch",
     });
   });
 
@@ -77,6 +77,11 @@ function paymentRecord(): StoredPaymentRecord {
     fulfilment_authorized: false,
     failure_code: null,
     order_creation_claimed_at: "2026-08-25T09:00:00.000Z",
+    confirmation_idempotency_key: "confirm:test-12345678",
+    order_creation_idempotency_key: "order:test-12345678",
+    callback_idempotency_key: null,
+    state_version: 4,
+    manual_review_required: false,
     customer_confirmed_at: "2026-08-25T09:00:00.000Z",
     created_at: "2026-08-25T09:00:00.000Z",
     updated_at: "2026-08-25T09:05:00.000Z",
