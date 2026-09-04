@@ -10,7 +10,6 @@ import {
   toMerchantOrder,
   type StoredAuditEvent,
 } from "@/server/orders/merchant-order-mapper";
-import { expireStaleUnpaidPaymentRecords } from "@/server/payments/payment-timeout";
 
 export const runtime = "nodejs";
 
@@ -19,7 +18,6 @@ export async function GET() {
   if (authError) return authError;
 
   try {
-    await expireStaleUnpaidPaymentRecords();
     const admin = getSupabaseAdmin();
     const { data: recordData, error: recordError } = await admin
       .from("payment_records")

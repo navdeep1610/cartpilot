@@ -5,6 +5,11 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync(resolve("supabase/migrations/0004_complete_audit_trail.sql"), "utf8").toLowerCase();
 
 describe("complete audit migration contract", () => {
+  it("resolves pgcrypto from Supabase's extensions schema", () => {
+    expect(migration).toContain("extensions.digest(");
+    expect(migration).not.toMatch(/(?<!extensions\.)digest\(/);
+  });
+
   it("serializes each trace and allocates an increasing sequence", () => {
     expect(migration).toContain("pg_advisory_xact_lock(hashtextextended(v_record.trace_id");
     expect(migration).toContain("max(sequence_number)");

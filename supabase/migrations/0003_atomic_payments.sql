@@ -165,7 +165,7 @@ as $$
     p_session_id, p_decision_id, p_catalog_version, p_policy_version,
     p_selected_candidate_id, p_amount_paise, p_cart_hash, p_confirmed_cart,
     p_decision_payload,
-    'legacy:' || encode(digest(p_session_id || ':' || p_decision_id || ':' || p_cart_hash, 'sha256'), 'hex')
+    'legacy:' || encode(extensions.digest(p_session_id || ':' || p_decision_id || ':' || p_cart_hash, 'sha256'), 'hex')
   );
 $$;
 

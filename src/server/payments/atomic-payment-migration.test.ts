@@ -5,6 +5,11 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync(resolve("supabase/migrations/0003_atomic_payments.sql"), "utf8");
 
 describe("atomic payment migration contract", () => {
+  it("resolves pgcrypto from Supabase's extensions schema", () => {
+    expect(migration).toContain("extensions.digest(");
+    expect(migration).not.toMatch(/(?<!extensions\.)digest\(/);
+  });
+
   it("serializes all critical payment mutations behind row locks", () => {
     for (const functionName of [
       "claim_payment_order",

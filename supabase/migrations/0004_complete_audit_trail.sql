@@ -223,7 +223,7 @@ begin
   if v_authorizes_fulfilment then
     v_gates := jsonb_build_array(
       jsonb_build_object('gate_id','GATE-CUSTOMER-CONFIRMATION','gate_type','customer_confirmation','policy_version','1.0.0','result','passed','blocks_action',false,'reason_code','CUSTOMER_CONFIRMED','input_hash',v_record.cart_hash,'observed_value',true,'expected_value',true,'checked_at',v_now),
-      jsonb_build_object('gate_id','GATE-WEBHOOK-SIGNATURE','gate_type','webhook_signature','policy_version','1.0.0','result','passed','blocks_action',false,'reason_code','WEBHOOK_SIGNATURE_VERIFIED','input_hash',encode(digest(coalesce(p_evidence,'{}'::jsonb)::text,'sha256'),'hex'),'observed_value',true,'expected_value',true,'checked_at',v_now),
+      jsonb_build_object('gate_id','GATE-WEBHOOK-SIGNATURE','gate_type','webhook_signature','policy_version','1.0.0','result','passed','blocks_action',false,'reason_code','WEBHOOK_SIGNATURE_VERIFIED','input_hash',encode(extensions.digest(coalesce(p_evidence,'{}'::jsonb)::text,'sha256'),'hex'),'observed_value',true,'expected_value',true,'checked_at',v_now),
       jsonb_build_object('gate_id','GATE-CAPTURE-CONFIRMED','gate_type','capture','policy_version','1.0.0','result','passed','blocks_action',false,'reason_code','CAPTURE_CONFIRMED','input_hash',v_record.cart_hash,'observed_value','captured','expected_value','captured','checked_at',v_now)
     );
   end if;
@@ -260,7 +260,7 @@ begin
     'source',jsonb_build_object('service','cartpilot','component','audit_engine',
       'component_version','1.0.0','environment','test','code_revision','phase-4','model_identifier',null),
     'subject',jsonb_build_object('entity_type',v_subject,'entity_id',v_record.payment_record_id,
-      'snapshot_hash',encode(digest(coalesce(p_evidence,'{}'::jsonb)::text,'sha256'),'hex'),
+      'snapshot_hash',encode(extensions.digest(coalesce(p_evidence,'{}'::jsonb)::text,'sha256'),'hex'),
       'snapshot_reference','audit_events.evidence'),
     'action',jsonb_build_object('action_type',v_action,'requested',true,'authorized',not v_is_failure,
       'executed',not v_is_failure,'external_side_effect',v_event_name in ('order.created','fulfilment.authorized'),
@@ -300,8 +300,8 @@ begin
   );
   if not public.audit_event_payload_valid(v_payload) then raise exception 'invalid_audit_event_payload'; end if;
   v_canonical := v_payload::text;
-  v_payload_hash := encode(digest(convert_to(v_canonical,'UTF8'),'sha256'),'hex');
-  v_event_hash := encode(digest(convert_to(coalesce(v_previous_hash,'') || ':' || v_payload_hash || ':' || v_audit_id || ':' || v_sequence::text,'UTF8'),'sha256'),'hex');
+  v_payload_hash := encode(extensions.digest(convert_to(v_canonical,'UTF8'),'sha256'),'hex');
+  v_event_hash := encode(extensions.digest(convert_to(coalesce(v_previous_hash,'') || ':' || v_payload_hash || ':' || v_audit_id || ':' || v_sequence::text,'UTF8'),'sha256'),'hex');
   v_payload := jsonb_set(jsonb_set(v_payload,'{integrity,payload_hash}',to_jsonb(v_payload_hash)),
     '{integrity,event_hash}',to_jsonb(v_event_hash));
 
