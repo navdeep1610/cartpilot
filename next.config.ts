@@ -3,6 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  outputFileTracingIncludes: {
+    "/*": [
+      "./catalog/**/*",
+      "./schemas/**/*",
+      "./PROJECT_PLAN.md",
+      "./IMPLEMENTATION_SPEC.md",
+    ],
+  },
   async headers() {
     const headers = [
       { key: "X-Content-Type-Options", value: "nosniff" },
