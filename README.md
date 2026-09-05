@@ -72,7 +72,7 @@ pnpm test
 pnpm build
 ```
 
-The Phase 4 implementation passes lint, type checking, unit and regression tests, runtime integrity checks and the production build. New checkouts receive a complete intent-to-payment audit trace with atomic sequencing, immutable rows, schema envelopes, linked SHA-256 hashes, merchant verification and sanitized JSON export. Apply Supabase migrations through `0004_complete_audit_trail.sql` before exercising the feature. The reviewer-facing failure/retry demonstration and full growth evaluation suite remain later release gates.
+The Phase 5 implementation passes lint, type checking, unit and regression tests, runtime integrity checks and the production build. New checkouts receive a complete intent-to-payment audit trace with atomic sequencing, immutable rows, schema envelopes, linked SHA-256 hashes, merchant verification and sanitized JSON export. A failed payment retains its cart, keeps fulfilment blocked and can idempotently reopen the same Razorpay Test order; the retry is counted and audited for the merchant. Apply Supabase migrations through `0005_failure_retry_demo.sql` before exercising the feature. The full growth evaluation suite remains the next release gate.
 
 ## Demo path
 

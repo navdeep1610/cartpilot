@@ -62,6 +62,7 @@ export function toMerchantOrder(
     fulfilmentStatusLabel: record.fulfilment_authorized ? "Ready to pack" : "Fulfilment blocked",
     callbackVerified: record.callback_verified,
     captureConfirmed: record.capture_confirmed,
+    paymentRetryCount: record.payment_retry_count,
     customer: toCustomer(cart.customer),
     lines,
     grossPaise: safeMoney(cart.grossPaise, sumLineMoney(lines, "unit")),

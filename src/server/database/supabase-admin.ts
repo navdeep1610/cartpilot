@@ -49,6 +49,8 @@ export interface StoredPaymentRecord {
   callback_idempotency_key: string | null;
   state_version: number;
   manual_review_required: boolean;
+  last_retry_idempotency_key: string | null;
+  payment_retry_count: number;
   customer_confirmed_at: string;
   created_at: string;
   updated_at: string;

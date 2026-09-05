@@ -137,6 +137,7 @@ begin
     when p_event_type = 'payment.order_creation_unknown' then 'order.creation_failed'
     when p_event_type = 'payment.callback_verified' then 'payment.signature_verified'
     when p_event_type = 'payment.callback_rejected' then 'payment.signature_failed'
+    when p_event_type = 'payment.retry_started' then 'payment.retry_started'
     when p_event_type = 'payment.timeout_applied' then 'payment.failed'
     when p_event_type = 'payment.webhook_reconciliation_failed' then 'system.data_integrity_failed'
     when p_event_type = 'payment.webhook_ignored' then 'webhook.out_of_order_reconciled'
@@ -162,6 +163,7 @@ begin
     when v_event_name = 'customer.confirmed' then 'record_confirmation'
     when v_event_name like 'order.%' then 'create_order'
     when v_event_name like 'payment.signature%' then 'verify_signature'
+    when v_event_name = 'payment.retry_started' then 'offer_retry'
     when v_event_name = 'fulfilment.authorized' then 'authorize_fulfilment'
     when v_event_name = 'fulfilment.blocked' then 'authorize_fulfilment'
     when v_event_name like 'payment.%' or v_event_name like 'webhook.%' then 'update_payment_state'
@@ -278,7 +280,8 @@ begin
       'source_of_truth',case when v_actor='customer' then 'customer_action' when v_actor like 'razorpay_%' then 'verified_razorpay_webhook' else 'deterministic_backend' end,
       'late_or_out_of_order_event',false,'version_before',greatest(v_record.state_version-1,0),'version_after',v_record.state_version),
     'failure',v_failure,
-    'recovery',case when v_is_failure then jsonb_build_object('status','offered','action','retain_cart_and_offer_retry','recovery_event_id',null,'customer_initiated',null,'safe_to_retry',true,'reuses_existing_order',true,'new_order_required',false,'duplicate_fulfilment_prevention_enabled',true,'result_reason_code','SAFE_RETRY_AVAILABLE')
+    'recovery',case when v_event_name='payment.retry_started' then jsonb_build_object('status','started','action','retain_cart_and_offer_retry','recovery_event_id',v_event_id,'customer_initiated',true,'safe_to_retry',true,'reuses_existing_order',true,'new_order_required',false,'duplicate_fulfilment_prevention_enabled',true,'result_reason_code','SAFE_PAYMENT_RETRY_STARTED')
+      when v_is_failure then jsonb_build_object('status','offered','action','retain_cart_and_offer_retry','recovery_event_id',null,'customer_initiated',null,'safe_to_retry',true,'reuses_existing_order',true,'new_order_required',false,'duplicate_fulfilment_prevention_enabled',true,'result_reason_code','SAFE_RETRY_AVAILABLE')
       else jsonb_build_object('status','not_required','action','none','recovery_event_id',null,'customer_initiated',null,'safe_to_retry',false,'reuses_existing_order',false,'new_order_required',false,'duplicate_fulfilment_prevention_enabled',true,'result_reason_code','NO_RECOVERY_REQUIRED') end,
     'explanation',jsonb_build_object('summary',replace(v_event_name,'.',' ') || ' was recorded.',
       'customer_message',case when v_is_failure then 'The action failed safely and your cart remains available.' else null end,

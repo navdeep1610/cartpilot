@@ -94,6 +94,12 @@ describe("toMerchantOrder", () => {
     expect(order.paymentStatusLabel).toBe("Payment timed out");
     expect(order.fulfilmentStatus).toBe("blocked");
   });
+
+  it("exposes safe payment retries as merchant evidence", () => {
+    const order = toMerchantOrder(paymentRecord({ payment_retry_count: 2 }), []);
+
+    expect(order.paymentRetryCount).toBe(2);
+  });
 });
 
 function paymentRecord(overrides: Partial<StoredPaymentRecord>): StoredPaymentRecord {
@@ -124,6 +130,8 @@ function paymentRecord(overrides: Partial<StoredPaymentRecord>): StoredPaymentRe
     callback_idempotency_key: null,
     state_version: 3,
     manual_review_required: false,
+    last_retry_idempotency_key: null,
+    payment_retry_count: 0,
     customer_confirmed_at: "2026-08-25T09:00:00.000Z",
     created_at: "2026-08-25T09:00:00.000Z",
     updated_at: "2026-08-25T09:05:00.000Z",

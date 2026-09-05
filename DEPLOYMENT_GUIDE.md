@@ -34,8 +34,8 @@ Switch the Razorpay dashboard to **Test Mode**.
 ## 2. Create the Supabase tables
 
 1. Open **Supabase → SQL Editor → New query**.
-2. Run the complete migration files in filename order: `0001_checkout_and_audit.sql`, `0002_customer_profiles.sql`, `0003_atomic_payments.sql`, then `0004_complete_audit_trail.sql`.
-3. Apply each migration once. Phase 4 requires both the atomic-payment and complete-audit migrations.
+2. Run the complete migration files in filename order: `0001_checkout_and_audit.sql`, `0002_customer_profiles.sql`, `0003_atomic_payments.sql`, `0004_complete_audit_trail.sql`, then `0005_failure_retry_demo.sql`.
+3. Apply each migration once. The failure demo requires all five migrations.
 
 This creates private decision, customer, payment, webhook, transition, and append-only audit tables plus the transactional payment functions. Browser users receive no direct access to these tables.
 
@@ -88,5 +88,6 @@ Use the same webhook secret stored in `RAZORPAY_WEBHOOK_SECRET`. Do not use a te
 - Duplicate confirmation, order and callback requests are idempotent, and webhook receipt plus state changes commit transactionally.
 - Audit events use a per-trace sequence lock, canonical payload hashes and parent hashes; update and delete operations are rejected.
 - Failed payments retain the cart and keep fulfilment blocked.
+- Failed payments can safely retry the same Razorpay order; retries are idempotent, counted and audited.
 - Merchant economics and secret keys are never returned by customer APIs.
 - Merchant pages, customer records, order APIs and payment reconciliation require a verified Supabase Auth session for the configured `MERCHANT_EMAIL`.

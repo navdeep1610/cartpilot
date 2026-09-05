@@ -68,6 +68,7 @@ export interface MerchantOrder {
   fulfilmentStatusLabel: string;
   callbackVerified: boolean;
   captureConfirmed: boolean;
+  paymentRetryCount: number;
   customer: MerchantOrderCustomer | null;
   lines: MerchantOrderLine[];
   grossPaise: number;

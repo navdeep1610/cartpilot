@@ -101,6 +101,18 @@ export async function applyPaymentTimeout(input: {
   });
 }
 
+export async function startPaymentRetry(input: {
+  recordId: string;
+  sessionId: string;
+  idempotencyKey: string;
+}): Promise<StoredPaymentRecord> {
+  return paymentRecordRpc("start_payment_retry", {
+    p_record_id: input.recordId,
+    p_session_id: input.sessionId,
+    p_idempotency_key: input.idempotencyKey,
+  });
+}
+
 export interface AtomicWebhookResult {
   duplicate: boolean;
   applied: boolean;

@@ -64,6 +64,8 @@ function paymentRecord(overrides: Partial<StoredPaymentRecord>): StoredPaymentRe
     callback_idempotency_key: null,
     state_version: 3,
     manual_review_required: false,
+    last_retry_idempotency_key: null,
+    payment_retry_count: 0,
     customer_confirmed_at: "2026-08-25T09:00:00.000Z",
     created_at: "2026-08-25T09:00:00.000Z",
     updated_at: "2026-08-25T09:00:00.000Z",

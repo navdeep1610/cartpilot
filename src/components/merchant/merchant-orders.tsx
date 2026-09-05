@@ -266,7 +266,7 @@ function OrderDetail({
       <div className="order-detail-grid">
         <section><UserRound size={19} /><div><h4>Customer</h4>{order.customer ? <address><strong>{order.customer.name}</strong><a href={`mailto:${order.customer.email}`}>{order.customer.email}</a><a href={`tel:${order.customer.phone}`}>{order.customer.phone}</a></address> : <p>This earlier test order was created before customer snapshots were enabled.</p>}</div></section>
         <section><MapPin size={19} /><div><h4>Delivery address</h4><p>{order.customer?.deliveryAddress ?? "Address not available for this earlier test order."}</p></div></section>
-        <section><CreditCard size={19} /><div><h4>Payment references</h4><dl><div><dt>Razorpay order</dt><dd>{order.razorpayOrderId}</dd></div><div><dt>Payment ID</dt><dd>{order.razorpayPaymentId ?? "Not received"}</dd></div><div><dt>Callback</dt><dd>{order.callbackVerified ? "Verified" : "Not verified"}</dd></div><div><dt>Capture</dt><dd>{order.captureConfirmed ? "Confirmed" : "Pending"}</dd></div></dl></div></section>
+        <section><CreditCard size={19} /><div><h4>Payment references</h4><dl><div><dt>Razorpay order</dt><dd>{order.razorpayOrderId}</dd></div><div><dt>Payment ID</dt><dd>{order.razorpayPaymentId ?? "Not received"}</dd></div><div><dt>Safe retries</dt><dd>{order.paymentRetryCount}</dd></div><div><dt>Callback</dt><dd>{order.callbackVerified ? "Verified" : "Not verified"}</dd></div><div><dt>Capture</dt><dd>{order.captureConfirmed ? "Confirmed" : "Pending"}</dd></div></dl></div></section>
         <section><Tag size={19} /><div><h4>Offer decision</h4><p>{offerDescription(order)}</p>{order.failureCode && <p className="order-failure">Failure code: {humanize(order.failureCode)}</p>}</div></section>
       </div>
 

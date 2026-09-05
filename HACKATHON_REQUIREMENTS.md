@@ -4,7 +4,7 @@ Status date: 5 September 2026
 
 Track: 01 — AI Growth & Agentic Commerce
 
-Current upgrade phase: Phase 4 — complete audit trail implemented locally
+Current upgrade phase: Phase 5 — failure and safe-retry demonstration implemented locally
 
 ## Official brief translated into acceptance criteria
 
@@ -32,8 +32,8 @@ Primary business measure: estimated contribution-profit uplift per shopping sess
 | Bounded | Implemented | Runtime-validated catalog snapshots, fail-closed compatibility, component inventory, exclusions, discount guards, relevance, cross-sell limits and profit floors are enforced | Preserve with end-to-end regression coverage |
 | Customer-gated | Implemented | Exact revalidated cart and total are required before order creation | Add end-to-end regression coverage |
 | Payment-gated | Implemented | Transactional payment claims and transitions require matching captured-payment plus paid-order evidence | Preserve with end-to-end Razorpay Test Mode evidence |
-| Audit trail | Implemented locally | Schema envelopes, atomic sequence allocation, payload hashes, linked event hashes, immutability and merchant JSON export are implemented | Apply migration `0004_complete_audit_trail.sql` before deployment |
-| Graceful failure | Partial | Gemini fallback, safe API errors, retained cart and blocked fulfilment exist | Demonstrate Razorpay failure, explicit safe retry and zero duplicate fulfilment |
+| Audit trail | Implemented | Schema envelopes, atomic sequence allocation, payload hashes, linked event hashes, immutability and merchant JSON export are implemented | Preserve during growth-evaluation work |
+| Graceful failure | Implemented locally | Failed payments retain the cart, block fulfilment and reopen the same Razorpay order through an idempotent audited retry | Apply migration `0005_failure_retry_demo.sql` and record the reviewer demo |
 | Merchant growth evidence | Not yet complete | Profit calculations exist in the engine | Run and publish all 35 evaluation scenarios and aggregate metrics |
 | Reviewer-ready deployment | Not yet complete | Local production build succeeds | Stable deployment, configured webhook, README, CI and five-minute demo |
 
@@ -93,9 +93,21 @@ Phase 3 exit criterion: a repeated customer mutation or webhook cannot create a 
 
 Phase 4 exit criterion: a merchant can reconstruct a new checkout trace and detect any sequence, payload, envelope or parent-hash alteration.
 
-## Next release gate: Phase 5
+## Phase 5 deliverables
 
-Build the reviewer-visible failed-payment and safe-retry demonstration, including retained cart evidence and proof that retry or late events cannot duplicate fulfilment.
+- [x] Retain the confirmed cart after a failed payment.
+- [x] Keep fulfilment blocked throughout failure and retry.
+- [x] Reopen the existing Razorpay order instead of creating a duplicate.
+- [x] Require a bounded idempotency key and make duplicate retry requests harmless.
+- [x] Record the recovery transition and `payment.retry_started` audit event.
+- [x] Show the retry action to the customer and retry count to the merchant.
+- [x] Reject retries after capture or fulfilment authorization.
+
+Phase 5 exit criterion: a failed Test payment can be retried safely without a second order or duplicate fulfilment, and the merchant can verify the recovery in the audit trail.
+
+## Next release gate: Phase 6
+
+Run the complete growth evaluation and publish reproducible merchant evidence across all 35 documented scenarios.
 
 ## Submission definition of done
 

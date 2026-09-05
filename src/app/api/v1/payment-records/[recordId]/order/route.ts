@@ -7,6 +7,7 @@ import {
   claimPaymentOrder,
   completePaymentOrder,
   markPaymentOrderUnknown,
+  startPaymentRetry,
 } from "@/server/payments/atomic-payment-store";
 import {
   createRazorpayTestOrder,
@@ -28,6 +29,7 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
 
   let record: StoredPaymentRecord | null = null;
   let idempotencyKey: string | null = null;
+  let orderCreationClaimed = false;
   try {
     ({ idempotencyKey } = guardCustomerMutation(request));
     record = await findPaymentRecord(recordId, sessionId);
@@ -35,6 +37,10 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
     record = await markPaymentTimedOut(record);
     if (record.failure_code === PAYMENT_TIMEOUT_REASON) {
       return safeError("ORDER_EXPIRED", "This checkout expired after one hour without payment. Confirm the cart again to create a new test order.", 409, true);
+    }
+    if (["payment_failed", "signature_verification_failed", "cancelled"].includes(record.state)) {
+      record = await startPaymentRetry({ recordId, sessionId, idempotencyKey });
+      return Response.json(toCheckoutResponse(record));
     }
     if (record.fulfilment_authorized || record.state === "payment_captured") {
       return safeError("ORDER_ALREADY_PAID", "This order is already paid and cannot be opened again.", 409, false);
@@ -68,6 +74,7 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
     if (claim.status === "in_progress") {
       return safeError("ORDER_CREATION_IN_PROGRESS", "Checkout is already being prepared. Please wait before retrying.", 409, true);
     }
+    orderCreationClaimed = true;
 
     const order = await createRazorpayTestOrder({
       amountPaise: record.amount_paise,
@@ -89,7 +96,7 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
     });
     return Response.json(toCheckoutResponse(storedRecord), { status: 201 });
   } catch (error) {
-    if (record?.payment_record_id && idempotencyKey) {
+    if (orderCreationClaimed && record?.payment_record_id && idempotencyKey) {
       try {
         await markPaymentOrderUnknown({
           recordId: record.payment_record_id,

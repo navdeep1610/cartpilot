@@ -571,6 +571,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           if (!verificationResponse.ok) {
             setCheckoutStatus("failure");
             setCheckoutMessage(verification.message || "The payment response could not be verified. Fulfilment remains blocked.");
+            checkoutAttemptRef.current = { ...attempt, orderKey: `retry:${crypto.randomUUID()}`, verificationKey: `verify:${crypto.randomUUID()}` };
             return;
           }
           await pollPaymentStatus(order.paymentRecordId);
@@ -610,6 +611,9 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
       }
       if (status.state === "payment_failed") {
         setCheckoutStatus("failure");
+        setCheckoutMessage(`${status.customerMessage} Click Pay again to retry the same protected order.`);
+        const currentAttempt = checkoutAttemptRef.current;
+        if (currentAttempt) checkoutAttemptRef.current = { ...currentAttempt, orderKey: `retry:${crypto.randomUUID()}`, verificationKey: `verify:${crypto.randomUUID()}` };
         return;
       }
     }
@@ -937,7 +941,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
               <span>I confirm this exact cart and total of <strong>{formatInr(displayedTotal)}</strong>.</span>
             </label>
             <button className="checkout-button" type="button" onClick={beginTestCheckout} disabled={!activeDecision || !policyPassed || !exactTotalConfirmed || checkoutStatus === "preparing"}>
-              {checkoutStatus === "preparing" ? "Preparing Test checkout..." : "Pay with Razorpay Test Mode"} <ArrowRight size={18} />
+              {checkoutStatus === "preparing" ? "Preparing Test checkout..." : checkoutStatus === "failure" ? "Retry Razorpay Test Payment" : "Pay with Razorpay Test Mode"} <ArrowRight size={18} />
             </button>
             {checkoutMessage && <p className={`checkout-status ${checkoutStatus}`} role="status">{checkoutMessage}</p>}
             <p className="checkout-note"><ShieldCheck size={15} /> Atomic checkout protection keeps one confirmed cart tied to one Razorpay order. Duplicate clicks and webhook replays cannot create a second fulfilment.</p>
