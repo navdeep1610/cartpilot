@@ -33,6 +33,7 @@ import {
   type CustomerProfileData,
   type SavedCustomerProfile,
 } from "@/domain/customers/customer-profile";
+import { parsePersistedCart, serializePersistedCart } from "@/domain/cart/persisted-cart";
 import { formatInr } from "@/domain/money";
 import type { CustomerOrder, CustomerOrdersResponse } from "@/domain/orders/customer-order";
 import { removePurchasedLinesFromCart } from "@/domain/orders/complete-customer-order";
@@ -184,6 +185,7 @@ const emptyProfile: CustomerProfileData = {
 };
 
 const profileStorageKey = "cartpilot-customer-profile-v1";
+const cartStorageKey = "cartpilot-cart-v1";
 
 const skinConcernCollections = [
   {
@@ -229,6 +231,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   const [bundleBannerPaused, setBundleBannerPaused] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [cart, setCart] = useState<Record<string, number>>({});
+  const [cartStorageReady, setCartStorageReady] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -307,6 +310,28 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     return total + (item?.variant.pricePaise ?? 0) * line.quantity;
   }, 0);
   const cartSignature = cartLines.map((line) => `${line.variantId}:${line.quantity}`).sort().join("|");
+
+  useEffect(() => {
+    const storedCart = parsePersistedCart(
+      window.localStorage.getItem(cartStorageKey),
+      new Set(productByVariant.keys()),
+    );
+    const animationFrame = window.requestAnimationFrame(() => {
+      setCart(storedCart);
+      setCartStorageReady(true);
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [productByVariant]);
+
+  useEffect(() => {
+    if (!cartStorageReady) return;
+    try {
+      if (Object.keys(cart).length === 0) window.localStorage.removeItem(cartStorageKey);
+      else window.localStorage.setItem(cartStorageKey, serializePersistedCart(cart));
+    } catch {
+      // Checkout safety remains in memory when browser storage is unavailable.
+    }
+  }, [cart, cartStorageReady]);
 
   useEffect(() => {
     if (bundleBannerPaused || bannerBundleCount < 2) return;
@@ -881,7 +906,20 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           )}
           <form className="assistant-form" onSubmit={requestRoutine}>
             <label htmlFor="skin-concern">Your skin and shopping goal</label>
-            <textarea id="skin-concern" value={assistantMessage} onChange={(event) => setAssistantMessage(event.target.value)} maxLength={1000} placeholder="Ask another skincare or shopping question..." />
+            <textarea
+              id="skin-concern"
+              value={assistantMessage}
+              onChange={(event) => setAssistantMessage(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+                event.preventDefault();
+                if (recommendationStatus !== "loading") event.currentTarget.form?.requestSubmit();
+              }}
+              maxLength={1000}
+              aria-describedby="assistant-keyboard-hint"
+              placeholder="Ask another skincare or shopping question..."
+            />
+            <small className="assistant-keyboard-hint" id="assistant-keyboard-hint">Enter to send · Shift+Enter for a new line</small>
             <button type="submit" disabled={recommendationStatus === "loading"}>
               {recommendationStatus === "loading" ? "Checking the catalog..." : "Build my routine"}
               {recommendationStatus !== "loading" && <ArrowRight size={17} aria-hidden="true" />}

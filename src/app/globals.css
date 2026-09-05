@@ -485,6 +485,12 @@ h3 { margin-bottom: 8px; font-size: 1.18rem; }
   color: var(--ink);
 }
 
+.assistant-form .assistant-keyboard-hint {
+  margin: 6px 3px 0;
+  color: #bdcec3;
+  font-size: .72rem;
+}
+
 .assistant-form button {
   gap: 8px;
   margin-top: 10px;

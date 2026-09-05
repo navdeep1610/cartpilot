@@ -51,6 +51,25 @@ test("typed follow-ups retain shopper context beyond two messages", async ({ pag
   await expect(page.getByLabel("Conversation with CartPilot")).toContainText("facewash");
 });
 
+test("Enter submits the AI request while Shift+Enter keeps a new line", async ({ page }) => {
+  await page.goto("/");
+  const composer = page.getByLabel("Your skin and shopping goal");
+
+  await composer.fill("I have oily skin");
+  await composer.press("Shift+Enter");
+  await expect(composer).toHaveValue("I have oily skin\n");
+  await composer.pressSequentially("and clogged pores");
+
+  const response = page.waitForResponse((candidate) =>
+    candidate.url().includes("/api/v1/recommendations") && candidate.request().method() === "POST",
+  );
+  await composer.press("Enter");
+
+  await expect(composer).toHaveValue("");
+  await response;
+  await expect(page.getByRole("button", { name: "Add the routine to cart" })).toBeVisible();
+});
+
 test("the merchant area remains access-controlled", async ({ page }) => {
   await page.goto("/merchant");
   await expect(page).toHaveURL(/\/merchant\/login(?:\?|$)/);
@@ -149,4 +168,70 @@ test("a customer can open completed orders from the storefront", async ({ page }
   await expect(page.getByText("ORD-DEMO-12345678")).toBeVisible();
   await expect(page.getByText("Payment captured · Ready to pack")).toBeVisible();
   await expect(page.getByLabel("My orders", { exact: true }).getByText("Acne Control Starter Kit")).toBeVisible();
+});
+
+test("an unfinished Razorpay checkout keeps the cart after returning or reloading", async ({ page }) => {
+  const profile = {
+    customerProfileId: "CUSTOMER-22222222-2222-4222-8222-222222222222",
+    name: "Demo Shopper",
+    email: "shopper@example.com",
+    phone: "+91 98765 43210",
+    deliveryAddress: "21 Demo Street, New Delhi",
+  };
+  await page.addInitScript(() => {
+    class AbandonedRazorpayCheckout {
+      constructor(private readonly options: Record<string, unknown>) {}
+
+      open() {
+        window.setTimeout(() => {
+          const modal = this.options.modal as { ondismiss?: () => void } | undefined;
+          modal?.ondismiss?.();
+        }, 0);
+      }
+    }
+
+    (window as unknown as { Razorpay: typeof AbandonedRazorpayCheckout }).Razorpay = AbandonedRazorpayCheckout;
+  });
+  await page.route("**/api/v1/customer-profile", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ profile }),
+  }));
+  await page.route("**/api/v1/checkout/confirm", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ paymentRecordId: "PAYREC-TEST-ABANDONED" }),
+  }));
+  await page.route("**/api/v1/payment-records/PAYREC-TEST-ABANDONED/order", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      paymentRecordId: "PAYREC-TEST-ABANDONED",
+      keyId: "rzp_test_demo",
+      orderId: "order_demoAbandoned",
+      amountPaise: 129900,
+      currency: "INR",
+      merchantName: "CartPilot Demo",
+      description: "Protected Test Mode checkout",
+      testMode: true,
+    }),
+  }));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Open my profile" }).click();
+  await expect(page.getByText("Profile stored in Supabase — ready for checkout.")).toBeVisible();
+  await page.getByRole("button", { name: "Close profile" }).click();
+  await page.getByRole("button", { name: "Add full kit" }).click();
+  await expect(page.getByText("Policy checks passed")).toBeVisible({ timeout: 15_000 });
+  await page.getByLabel(/I confirm this exact cart and total/).check();
+  await page.getByRole("button", { name: /Pay with Razorpay Test Mode/ }).click();
+
+  await expect(page.getByText("Test checkout was closed. The cart is retained and fulfilment remains blocked.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open cart with 1 items" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Open cart with 1 items" })).toBeVisible();
+  await page.getByRole("button", { name: "Open cart with 1 items" }).click();
+  await expect(page.getByRole("heading", { name: "Shopping cart" })).toBeVisible();
+  await expect(page.getByText("Acne Control Starter Kit").last()).toBeVisible();
 });
