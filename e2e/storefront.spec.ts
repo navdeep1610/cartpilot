@@ -30,6 +30,7 @@ test("the medical boundary stops a commercial recommendation", async ({ page }) 
 
 test("the merchant area remains access-controlled", async ({ page }) => {
   await page.goto("/merchant");
-  await expect(page).toHaveURL(/\/merchant\/login\?next=%2Fmerchant$/);
+  await expect(page).toHaveURL(/\/merchant\/login(?:\?|$)/);
+  expect(new URL(page.url()).searchParams.get("next")).toBe("/merchant");
   await expect(page.getByRole("heading", { name: "Your customer data stays private." })).toBeVisible();
 });
