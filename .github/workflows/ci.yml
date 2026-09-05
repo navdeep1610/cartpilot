@@ -1,12 +1,14 @@
-name: Release quality gate
+name: CI/CD
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
 
 permissions:
   contents: read
+  statuses: read
 
 concurrency:
   group: cartpilot-ci-${{ github.ref }}
@@ -67,3 +69,37 @@ jobs:
 
       - name: Run desktop and mobile release journeys
         run: pnpm test:e2e
+
+  production-deployment:
+    name: Verify Vercel production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      COMMIT_SHA: ${{ github.sha }}
+      REPOSITORY: ${{ github.repository }}
+      PRODUCTION_URL: https://cartpilot-gold.vercel.app/
+    steps:
+      - name: Wait for this commit's Vercel deployment
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            state="$(gh api "repos/${REPOSITORY}/commits/${COMMIT_SHA}/status" \
+              --jq '[.statuses[] | select(.context == "Vercel")][0].state // "waiting"')"
+            echo "Vercel status: ${state} (attempt ${attempt}/30)"
+
+            case "${state}" in
+              success) exit 0 ;;
+              failure|error) exit 1 ;;
+            esac
+
+            sleep 20
+          done
+
+          echo "Vercel did not report a final status within 10 minutes."
+          exit 1
+
+      - name: Smoke-check the live website
+        run: curl --fail --silent --show-error --location --retry 3 --retry-delay 5 --retry-all-errors "${PRODUCTION_URL}" > /dev/null

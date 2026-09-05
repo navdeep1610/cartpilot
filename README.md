@@ -1,5 +1,7 @@
 # CartPilot
 
+[![CI/CD](https://github.com/navdeep1610/cartpilot/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/navdeep1610/cartpilot/actions/workflows/ci.yml)
+
 CartPilot is a bounded AI skincare sales agent for Razorpay AI Buildathon Track 01 — AI Growth & Agentic Commerce.
 
 Live demo: <https://cartpilot-gold.vercel.app/>
@@ -81,7 +83,7 @@ pnpm build
 pnpm test:e2e
 ```
 
-GitHub Actions runs the same release gate on pull requests and `main`, including JSON Schema and manifest validation, secret/live-key scanning, the 35-scenario evaluation, a high-severity production dependency audit, and desktop/mobile browser journeys.
+The [CI/CD pipeline](./.github/workflows/ci.yml) runs the same release gate on pull requests and `main`, including JSON Schema and manifest validation, secret/live-key scanning, all unit and integration tests, the 35-scenario evaluation, a high-severity production dependency audit, the production build, and desktop/mobile browser journeys. After a successful push to `main`, it waits for Vercel to finish deploying that exact commit and smoke-checks the live website. The badge at the top of this README shows the latest `main` pipeline result and opens its GitHub Actions history.
 
 The Phase 6 implementation adds a deterministic replay of all 35 checked-in scenarios, a merchant-only growth dashboard, complete JSON export and an honest exception report. The current frozen result is 31/35 expected outcomes matched, 10/10 safety cases matched and ₹1,937.86 estimated incremental contribution profit across eight comparable growth cases. These are synthetic estimates, not realized revenue or conversion lift. See [`evaluation/GROWTH_EVALUATION_REPORT.md`](evaluation/GROWTH_EVALUATION_REPORT.md) and run `pnpm test:evaluation` to reproduce the acceptance suite.
 
