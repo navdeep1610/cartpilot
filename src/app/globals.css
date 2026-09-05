@@ -1354,6 +1354,11 @@ button:disabled {
 .order-product-line > div small { margin-top: 4px; color: var(--muted); font-size: .66rem; }
 .order-product-line > span { color: var(--muted); white-space: nowrap; }
 .order-totals { display: grid; justify-content: end; gap: 6px; margin-top: 14px; }
+.order-profit > p { color: var(--muted); font-size: .8rem; }
+.order-profit-rows { display: grid; gap: 10px; max-width: 560px; margin: 20px 0 0 auto; font-size: .85rem; }
+.order-profit-rows > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; }
+.order-profit-rows dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.order-profit-total { border-top: 1px solid #bdb5a8; padding-top: 12px; font-weight: 700; }
 .order-totals span { display: grid; grid-template-columns: 145px 100px; gap: 14px; color: var(--muted); font-size: .74rem; text-align: right; }
 .order-totals span:last-child { padding-top: 7px; border-top: 1px solid #bdb5a8; color: var(--ink); }
 .order-audit > p { margin: 8px 0 0; color: var(--muted); font-size: .76rem; }

@@ -22,6 +22,7 @@ import type {
   MerchantPaymentStatus,
 } from "@/domain/orders/merchant-order";
 import { formatInr } from "@/domain/money";
+import { OrderProfitBreakdown } from "@/components/merchant/order-profit-breakdown";
 
 type LoadState = "loading" | "ready" | "error";
 type StatusFilter = "all" | MerchantPaymentStatus;
@@ -282,6 +283,8 @@ function OrderDetail({
         <div className="order-totals"><span>Gross products <strong>{formatInr(order.grossPaise)}</strong></span><span>Offer savings <strong>-{formatInr(order.savingPaise)}</strong></span><span>Total paid/expected <strong>{formatInr(order.amountPaise)}</strong></span></div>
       </section>
 
+      <OrderProfitBreakdown profit={order.profitBreakdown} paymentStatus={order.paymentStatus} />
+
       <section className="order-audit">
         <div className="order-subheading">
           <div>
@@ -301,7 +304,7 @@ function OrderDetail({
         {order.decisionEvidence && (
           <div className="audit-decision-evidence">
             <span><small>Candidates</small><strong>{order.decisionEvidence.evaluatedCandidates} evaluated · {order.decisionEvidence.rejectedCandidates} rejected</strong></span>
-            <span><small>Selected profit</small><strong>{order.decisionEvidence.selectedContributionProfitPaise === null ? "Unavailable" : formatInr(order.decisionEvidence.selectedContributionProfitPaise)}</strong></span>
+            <span><small>Confirmed cart estimated profit</small><strong>{order.profitBreakdown ? formatInr(order.profitBreakdown.contributionProfitPaise) : "Unavailable"}</strong></span>
             <span><small>Versions</small><strong>{order.decisionEvidence.catalogVersion ?? "Catalog unavailable"} · {order.decisionEvidence.policyVersion ?? "Policy unavailable"}</strong></span>
           </div>
         )}

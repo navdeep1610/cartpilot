@@ -8,6 +8,7 @@ import type {
 } from "@/domain/orders/merchant-order";
 import type { StoredPaymentRecord } from "@/server/database/supabase-admin";
 import { verifyAuditChain, type StoredAuditEnvelope } from "@/server/audit/audit-chain";
+import { confirmedOrderProfit } from "@/server/orders/order-profit";
 
 export interface StoredAuditEvent {
   audit_event_id: string;
@@ -78,6 +79,7 @@ export function toMerchantOrder(
       ? { status: verification.valid ? "verified" : "broken", ...verification }
       : { status: "legacy", eventCount: recordAuditEvents.length, headHash: null, issues: [] },
     decisionEvidence: toDecisionEvidence(storedDecision),
+    profitBreakdown: confirmedOrderProfit(storedDecision, readString(offer.candidateId), lines, record.amount_paise),
   };
 }
 

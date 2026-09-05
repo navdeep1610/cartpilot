@@ -82,6 +82,20 @@ export interface MerchantOrder {
   auditEvents: MerchantOrderAuditEvent[];
   auditIntegrity: MerchantAuditIntegrity;
   decisionEvidence: MerchantDecisionEvidence | null;
+  profitBreakdown: MerchantOrderProfit | null;
+}
+
+export interface MerchantOrderProfit {
+  grossItemRevenuePaise: number;
+  discountCostPaise: number;
+  netRevenuePaise: number;
+  productCostPaise: number;
+  packagingCostPaise: number;
+  fulfilmentCostPaise: number;
+  expectedReturnCostPaise: number;
+  estimatedPaymentCostPaise: number;
+  incentiveCostPaise: number;
+  contributionProfitPaise: number;
 }
 
 export interface MerchantOrdersResponse {

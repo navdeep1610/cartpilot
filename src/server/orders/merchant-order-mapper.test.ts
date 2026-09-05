@@ -1,6 +1,102 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import type { CatalogSnapshot } from "@/domain/catalog/types";
+import { loadCatalogSnapshot } from "@/server/catalog/file-catalog-repository";
+import { extractFallbackIntent } from "@/domain/intent/fallback-intent";
+import { selectOffer } from "@/domain/offers/select-offer";
+import { calculateProfit, type ProfitBreakdown } from "@/domain/profit/calculate-profit";
+import { toOfferDecisionSchema } from "@/server/offers/validate-offer-decision";
 import type { StoredPaymentRecord } from "@/server/database/supabase-admin";
 import { toMerchantOrder, type StoredAuditEvent } from "@/server/orders/merchant-order-mapper";
+
+let snapshot: CatalogSnapshot;
+beforeAll(async () => { snapshot = await loadCatalogSnapshot(); });
+
+describe("confirmed order profit", () => {
+  it("uses the customer's ₹349 baseline instead of the recommended cross-sell", () => {
+    const intent = extractFallbackIntent("I want an acne spot treatment");
+    const decision = selectOffer(snapshot, [{ variantId: "ACN-001-15G", quantity: 1 }], intent);
+    const baseline = decision.candidates.find((candidate) => candidate.candidateId === decision.baselineCandidateId)!;
+    expect(decision.selectedCandidateId).not.toBe(baseline.candidateId);
+    const stored = {
+      // Another customer can confirm a different candidate from this same decision.
+      customerConfirmedCandidateId: decision.selectedCandidateId,
+      auditDecision: toOfferDecisionSchema(snapshot, decision, intent, "SESSION-PROFIT-TEST"),
+    };
+    const record = recordWithProfit(baseline.profit, baseline.candidateId);
+    const order = toMerchantOrder(record, [], snapshot, stored);
+    expect(order.amountPaise).toBe(34900);
+    expect(order.profitBreakdown).toMatchObject({
+      netRevenuePaise: 34900, productCostPaise: 12500, packagingCostPaise: 1400,
+      fulfilmentCostPaise: 3000, expectedReturnCostPaise: 560,
+      estimatedPaymentCostPaise: 698, contributionProfitPaise: 16742,
+    });
+    const recommended = decision.candidates.find((candidate) => candidate.candidateId === decision.selectedCandidateId)!;
+    expect(toMerchantOrder(recordWithProfit(recommended.profit, recommended.candidateId), [], snapshot, stored)
+      .profitBreakdown?.contributionProfitPaise).toBe(recommended.profit.contributionProfitPaise);
+  });
+
+  it("preserves saved costs, quantities, discounts and incentives", () => {
+    const profit = calculateProfit(snapshot, [{ variantId: "ACN-001-15G", quantity: 2, lineDiscountPaise: 2000 }], 500);
+    const order = toMerchantOrder(recordWithProfit(profit), [], undefined, storedProfit(profit));
+    expect(order.profitBreakdown).toMatchObject({
+      grossItemRevenuePaise: 69800, discountCostPaise: 2000, netRevenuePaise: 67800,
+      productCostPaise: 25000, packagingCostPaise: 2800, fulfilmentCostPaise: 6000,
+      expectedReturnCostPaise: 1120, estimatedPaymentCostPaise: 1356,
+      incentiveCostPaise: 500, contributionProfitPaise: 31024,
+    });
+  });
+
+  it("preserves a negative profit and identifies unpaid orders separately", () => {
+    const profit = calculateProfit(snapshot, [{ variantId: "ACN-001-15G", quantity: 1, lineDiscountPaise: 30000 }]);
+    const order = toMerchantOrder(recordWithProfit(profit), [], snapshot, storedProfit(profit));
+    expect(order.profitBreakdown?.contributionProfitPaise).toBe(-12658);
+    expect(order.paymentStatus).toBe("awaiting_payment");
+  });
+
+  it("matches earlier orders without a candidate ID by exact lines and total", () => {
+    const profit = calculateProfit(snapshot, [{ variantId: "ACN-001-15G", quantity: 1 }]);
+    const record = recordWithProfit(profit);
+    record.confirmed_cart = { lines: profit.lines };
+    expect(toMerchantOrder(record, [], snapshot, storedProfit(profit)).profitBreakdown?.contributionProfitPaise).toBe(16742);
+  });
+
+  it("does not invent profit for missing, inconsistent or mismatched evidence", () => {
+    const profit = calculateProfit(snapshot, [{ variantId: "ACN-001-15G", quantity: 1 }]);
+    const record = recordWithProfit(profit);
+    expect(toMerchantOrder(record, [], snapshot).profitBreakdown).toBeNull();
+    expect(toMerchantOrder({ ...record, amount_paise: 99900 }, [], snapshot, storedProfit(profit)).profitBreakdown).toBeNull();
+    expect(toMerchantOrder(recordWithProfit(profit, "different-cart"), [], snapshot, storedProfit(profit)).profitBreakdown).toBeNull();
+    const inconsistent = storedProfit({ ...profit, contributionProfitPaise: 42019 });
+    expect(toMerchantOrder(record, [], snapshot, inconsistent).profitBreakdown).toBeNull();
+    const missing = storedProfit(profit);
+    delete (missing.auditDecision.candidates[0].profit as Record<string, unknown>).product_cost_paise;
+    expect(toMerchantOrder(record, [], snapshot, missing).profitBreakdown).toBeNull();
+  });
+});
+
+function recordWithProfit(profit: ProfitBreakdown, candidateId = "confirmed-cart") {
+  return paymentRecord({ amount_paise: profit.netRevenuePaise, confirmed_cart: {
+    lines: profit.lines, offer: { candidateId },
+  } });
+}
+
+function storedProfit(profit: ProfitBreakdown) {
+  return { auditDecision: { candidates: [{
+    candidate_id: "confirmed-cart",
+    lines: profit.lines.map((line) => ({
+      variant_id: line.variantId, product_id: line.productId, quantity: line.quantity,
+      unit_price_paise: line.unitPricePaise, line_discount_paise: line.lineDiscountPaise,
+      line_final_paise: line.lineFinalPaise,
+    })),
+    profit: {
+      gross_item_revenue_paise: profit.grossItemRevenuePaise, discount_cost_paise: profit.discountCostPaise,
+      net_revenue_paise: profit.netRevenuePaise, product_cost_paise: profit.productCostPaise,
+      packaging_cost_paise: profit.packagingCostPaise, fulfilment_cost_paise: profit.fulfilmentCostPaise,
+      expected_return_cost_paise: profit.expectedReturnCostPaise, estimated_payment_cost_paise: profit.estimatedPaymentCostPaise,
+      incentive_cost_paise: profit.incentiveCostPaise, contribution_profit_paise: profit.contributionProfitPaise,
+    },
+  }] } };
+}
 
 describe("toMerchantOrder", () => {
   it("maps a captured Supabase payment record into a fulfilment-ready order", () => {
