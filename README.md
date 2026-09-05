@@ -2,6 +2,8 @@
 
 CartPilot is a bounded AI skincare sales agent for Razorpay AI Buildathon Track 01 — AI Growth & Agentic Commerce.
 
+Live demo: <https://cartpilot-gold.vercel.app/>
+
 It converts a shopper's natural-language goal into a catalog-backed routine, evaluates compatible bundles, cross-sells and approved discounts with deterministic merchant rules, asks the shopper to confirm the exact total, and uses Razorpay Test Mode for checkout.
 
 ## The Track 01 claim
@@ -38,7 +40,7 @@ The baseline application is implemented and builds successfully. A September 202
 5. Failure-first customer recovery flow — complete in this release.
 6. Thirty-five-scenario growth evaluation and merchant evidence — complete in this release.
 7. Agentic interaction polish — complete in this release.
-8. CI, deployment and submission package.
+8. CI, deployment and submission package — engineering complete; account-owner evidence remains.
 
 The live requirement matrix and exit criteria are in [HACKATHON_REQUIREMENTS.md](./HACKATHON_REQUIREMENTS.md). Detailed product and engineering contracts remain in [PROJECT_PLAN.md](./PROJECT_PLAN.md) and [IMPLEMENTATION_SPEC.md](./IMPLEMENTATION_SPEC.md).
 
@@ -70,12 +72,44 @@ Configure private values in `.env.local`; never commit that file. See [DEPLOYMEN
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:evaluation
+pnpm validate:release
+pnpm audit:dependencies
 pnpm build
+pnpm test:e2e
 ```
+
+GitHub Actions runs the same release gate on pull requests and `main`, including JSON Schema and manifest validation, secret/live-key scanning, the 35-scenario evaluation, a high-severity production dependency audit, and desktop/mobile browser journeys.
 
 The Phase 6 implementation adds a deterministic replay of all 35 checked-in scenarios, a merchant-only growth dashboard, complete JSON export and an honest exception report. The current frozen result is 31/35 expected outcomes matched, 10/10 safety cases matched and ₹1,937.86 estimated incremental contribution profit across eight comparable growth cases. These are synthetic estimates, not realized revenue or conversion lift. See [`evaluation/GROWTH_EVALUATION_REPORT.md`](evaluation/GROWTH_EVALUATION_REPORT.md) and run `pnpm test:evaluation` to reproduce the acceptance suite.
 
-Phase 7 adds bounded shopper follow-ups, visible agent activity, explicit AI-versus-rule authority labels, provider fallback and safe recommendation retry. The activity record reports actions and evidence; it does not expose or claim private model reasoning. The final release gate is the CI, deployment and reviewer submission package.
+Phase 7 adds bounded shopper follow-ups, visible agent activity, explicit AI-versus-rule authority labels, provider fallback and safe recommendation retry. The activity record reports actions and evidence; it does not expose or claim private model reasoning.
+
+Phase 8 adds the automated release workflow, contract and secret validation, desktop/mobile browser acceptance tests, stable deployment instructions, a five-minute demo script, and an evidence checklist. See [the demo script](submission/DEMO_SCRIPT.md) and [release checklist](submission/RELEASE_CHECKLIST.md).
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Shopper --> UI[Next.js storefront]
+  UI --> Intent[Gemini intent adapter<br/>with deterministic fallback]
+  Intent --> Rules[Catalog, compatibility,<br/>profit and policy engines]
+  Rules --> Gate[Exact-cart customer gate]
+  Gate --> Razorpay[Razorpay Test Mode]
+  Razorpay --> Verify[Signed callback, webhook<br/>and API reconciliation]
+  Verify --> Store[(Supabase atomic state<br/>and hash-linked audit)]
+  Store --> Merchant[Protected merchant portal]
+```
+
+The LLM is advisory. It cannot select catalog eligibility, set a price or discount, create an order, change payment state, or authorize fulfilment. Those actions are performed by versioned deterministic code and server-verified payment evidence.
+
+## Honest limitations
+
+- The catalog, skincare relationships, costs, policies and reported uplift are synthetic demo inputs and are not approved for production or medical use.
+- Four of the 35 frozen scenarios remain documented exceptions; the headline result does not omit them.
+- Razorpay is Test Mode only. No real-money use is authorized.
+- ACP, AP2, UAP, x402, autonomous purchasing and campaign orchestration are not implemented claims.
+- A complete submission still requires the account owner to verify the stable webhook, record one successful and one failed/retried Test payment, confirm event eligibility and deadline, and upload the demo video.
 
 ## Demo path
 
@@ -87,4 +121,4 @@ Phase 7 adds bounded shopper follow-ups, visible agent activity, explicit AI-ver
 6. Complete Razorpay Test Checkout.
 7. Review the resulting payment evidence in the protected merchant portal.
 
-The submission is complete only after both a successful payment and a failed-payment recovery have been demonstrated through the stable deployed webhook.
+The repository engineering package is complete only when CI passes. The hackathon submission is complete only after every account-owner item in [the release checklist](submission/RELEASE_CHECKLIST.md), including successful and failed-payment evidence through the stable webhook, is checked.

@@ -20,6 +20,8 @@ In the Supabase project dashboard, open **Project Settings → API**.
 
 In Google AI Studio, copy the API key you already created into `GEMINI_API_KEY`.
 
+Keep `GEMINI_DISABLED=false` or omit it in the deployed demo. Setting it to `true` is a server-side circuit breaker used by deterministic tests and emergency provider isolation; the storefront then labels the safe fallback.
+
 ### Razorpay
 
 Switch the Razorpay dashboard to **Test Mode**.
@@ -67,7 +69,7 @@ After deployment, opening `/merchant` redirects signed-out visitors to `/merchan
 
 After the first production deployment, add this URL in the Razorpay Test Mode webhook settings:
 
-`https://YOUR-STABLE-VERCEL-DOMAIN/api/v1/webhooks/razorpay`
+`https://cartpilot-gold.vercel.app/api/v1/webhooks/razorpay`
 
 Subscribe to:
 
@@ -77,6 +79,12 @@ Subscribe to:
 - `order.paid`
 
 Use the same webhook secret stored in `RAZORPAY_WEBHOOK_SECRET`. Do not use a temporary Vercel preview URL.
+
+## 6. Run the release gate
+
+From a clean checkout, run the commands in [`submission/RELEASE_CHECKLIST.md`](submission/RELEASE_CHECKLIST.md). The GitHub `Release quality gate` workflow must pass on the exact commit deployed by Vercel.
+
+Then complete the two manual Razorpay Test Mode journeys and record only redacted identifiers and trace IDs. The application cannot verify dashboard webhook configuration, event eligibility, or video upload from repository code; those remain explicit account-owner checks.
 
 ## Safety rules already enforced by the application
 

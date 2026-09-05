@@ -1,0 +1,69 @@
+name: Release quality gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cartpilot-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: true
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3200
+      NEXT_PUBLIC_DEMO_MODE: true
+      RAZORPAY_MODE: test
+      GEMINI_DISABLED: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting and whitespace
+        run: pnpm format:check
+
+      - name: Validate release contracts and repository secrets
+        run: pnpm validate:release
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Run unit and integration tests
+        run: pnpm test
+
+      - name: Replay all 35 evaluation scenarios
+        run: pnpm test:evaluation
+
+      - name: Audit production dependencies
+        run: pnpm audit:dependencies
+
+      - name: Build production application
+        run: pnpm build
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps --no-shell chromium
+
+      - name: Run desktop and mobile release journeys
+        run: pnpm test:e2e

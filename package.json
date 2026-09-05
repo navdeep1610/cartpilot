@@ -12,15 +12,21 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "format:check": "git diff --check",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest run",
     "test:evaluation": "vitest run src/server/evaluation/growth-evaluation.test.ts",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "scan:secrets": "node scripts/secret-scan.mjs",
+    "validate:contracts": "node scripts/validate-release.mjs",
+    "validate:release": "pnpm validate:contracts && pnpm scan:secrets",
+    "audit:dependencies": "pnpm audit --prod --audit-level high"
   },
   "dependencies": {
-    "@google/genai": "2.18.0",
+    "@google/genai": "2.21.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "2.112.4",
     "ajv": "8.20.0",

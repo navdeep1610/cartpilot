@@ -1,6 +1,6 @@
 # CartPilot — Product and Build Plan
 
-Status: Baseline application implemented; Phase 4 complete audit trail implemented locally on 5 September 2026. Failure and retry demonstration is next.
+Status: Release engineering and reviewer package implemented on 5 September 2026; account-owner payment, webhook, eligibility and video evidence remains before submission.
 
 Original planning date: 24 August 2026
 
@@ -633,9 +633,9 @@ State the merchant benefit and one clear next extension, such as Hinglish or an 
 
 The versioned demo snapshot contains 40 products, 74 variants, merchant economics, compatibility relationships, warning fields, five bundles, a discount ladder, profit policy and 35 evaluation scenarios. Domain review remains required before any non-demo use.
 
-### Gate C — Resource readiness — partial
+### Gate C — Resource readiness — engineering complete, owner verification pending
 
-Supabase, Gemini and Razorpay configuration hooks exist. The merchant allowlist, stable production deployment, webhook delivery and provider connectivity still require release verification.
+Supabase, Gemini and Razorpay configuration hooks exist, and the stable Vercel deployment is live. The account owner must still verify the production merchant allowlist, current webhook delivery and the two Test Mode payment demonstrations.
 
 ### Gate D — UX and architecture freeze — complete
 
@@ -645,9 +645,9 @@ Shopper and merchant interfaces, data flow, money-action policy, entities and ac
 
 The baseline application is implemented. On 4 September 2026 the owner authorised the Phase 1 and Phase 2 hackathon-readiness upgrades and direct GitHub delivery.
 
-### Gate F — Submission readiness
+### Gate F — Submission readiness — owner evidence pending
 
-The deployed demo, test results, repository, documentation, and five-minute video all satisfy the definition of done.
+The deployed demo, automated tests, repository documentation, timed demo script and evidence checklist are prepared. The recorded video, event eligibility/deadline, webhook dashboard evidence and two Test Mode payment recordings remain owner-controlled completion items.
 
 ## 21. Remaining release decisions
 

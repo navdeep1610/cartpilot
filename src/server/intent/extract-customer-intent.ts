@@ -33,7 +33,7 @@ export async function extractCustomerIntent(
 ): Promise<NormalizedCustomerIntent> {
   const fallback = extractFallbackIntent(message);
   const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) return fallback;
+  if (!apiKey || process.env.GEMINI_DISABLED === "true") return fallback;
 
   try {
     const catalogNames = [...snapshot.products.values()]

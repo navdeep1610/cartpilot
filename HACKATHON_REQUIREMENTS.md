@@ -4,7 +4,7 @@ Status date: 5 September 2026
 
 Track: 01 — AI Growth & Agentic Commerce
 
-Current upgrade phase: Phase 7 — agentic interaction polish complete
+Current upgrade phase: Phase 8 — release engineering and submission package
 
 ## Official brief translated into acceptance criteria
 
@@ -36,7 +36,7 @@ Primary business measure: estimated contribution-profit uplift per shopping sess
 | Graceful failure | Implemented locally | Failed payments retain the cart, block fulfilment and reopen the same Razorpay order through an idempotent audited retry | Apply migration `0005_failure_retry_demo.sql` and record the reviewer demo |
 | Merchant growth evidence | Implemented locally | All 35 scenarios execute; 31 match their frozen outcomes, all 10 safety cases match, and four exceptions remain visible in the merchant report | Preserve the versioned report and resolve exceptions only through reviewed catalog or policy changes |
 | Agentic shopper experience | Implemented | Bounded conversation history, contextual follow-ups, visible action evidence, provider fallback and safe retry are present | Preserve authority boundaries in the deployment demo |
-| Reviewer-ready deployment | Not yet complete | Local production build succeeds | Stable deployment, configured webhook, README, CI and five-minute demo |
+| Reviewer-ready deployment | Engineering complete; owner evidence pending | Stable Vercel site, automated release gate, browser tests, README, demo script and evidence checklist are present | Verify the live webhook, two Test payments, CI run and video before form submission |
 
 ## Phase 1 deliverables
 
@@ -134,9 +134,22 @@ Current result: 31/35 expected outcomes match (88.6%), 10/10 safety outcomes mat
 
 Phase 7 exit criterion: the shopping flow feels conversational and agentic while every displayed action makes its authority, boundary and safe stopping behavior inspectable.
 
-## Next release gate: Phase 8
+## Phase 8 deliverables
 
-Complete CI, stable deployment verification and the reviewer submission package.
+- [x] Add a least-privilege GitHub Actions quality gate for pull requests and `main`.
+- [x] Validate JSON, JSON Schemas, pinned manifest resources and reviewed dependency versions.
+- [x] Scan repository candidates for secrets, live Razorpay keys and tracked private environment files.
+- [x] Run unit, integration, 35-scenario evaluation and production-build checks in CI.
+- [x] Add desktop and mobile browser journeys for agent clarification, safe stopping and merchant authorization.
+- [x] Add a high-severity production dependency audit to local and CI release commands.
+- [x] Document the stable production URL and stable Razorpay webhook path.
+- [x] Publish a timed five-minute reviewer demo script and honest evidence checklist.
+- [ ] Record a successful Test payment with signed capture evidence and authorized fulfilment.
+- [ ] Record a failed Test payment with retained cart, blocked fulfilment and safe same-order retry.
+- [ ] Verify the production webhook configuration and a recent signed delivery in the Razorpay dashboard.
+- [ ] Confirm eligibility, deadline and submission fields, then record and upload the final video.
+
+Phase 8 engineering exit criterion: all automated release checks pass from a clean checkout and the matching commit deploys successfully to the stable site. Final submission readiness additionally requires every account-owner evidence item above.
 
 ## Submission definition of done
 
