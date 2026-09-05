@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { buildShoppingAgentRun, suggestedAgentReplies } from "@/domain/agents/shopping-agent-run";
 import { recommendRoutine } from "@/domain/recommendations/recommend-routine";
 import { getCatalogSnapshot } from "@/server/catalog/file-catalog-repository";
 import { extractCustomerIntent } from "@/server/intent/extract-customer-intent";
@@ -20,6 +22,8 @@ export async function POST(request: Request) {
     return Response.json({
       ...recommendation,
       intentSource: intent.source,
+      agentRun: buildShoppingAgentRun(randomUUID(), snapshot, intent, recommendation),
+      suggestedReplies: suggestedAgentReplies(recommendation, intent),
       catalogVersion: snapshot.version,
       disclaimer: "Demo skincare guidance only. This is not medical advice.",
     });

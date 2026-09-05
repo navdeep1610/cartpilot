@@ -14,6 +14,7 @@ CartPilot follows the challenge's revenue-growth route. Agent-to-agent protocol 
 
 - Forty-product, seventy-four-variant merchant catalog with customer-safe projection.
 - Natural-language intent extraction with a deterministic fallback when Gemini is unavailable.
+- Bounded multi-turn follow-ups with visible agent actions, authority labels and safe retry.
 - Catalog-backed routine recommendations and human-readable reasons.
 - Deterministic baseline, bundle, cross-sell, substitute and bounded-discount candidates.
 - Fail-closed compatibility, bundle-component inventory, customer-exclusion and discount-policy guards.
@@ -33,10 +34,10 @@ The baseline application is implemented and builds successfully. A September 202
 1. Hackathon story and governance freeze — complete in this release.
 2. Commercial-policy correctness and catalog validation — complete in this release.
 3. Transactional payment and webhook reliability — complete in this release.
-4. Complete intent-to-fulfilment audit trail.
-5. Failure-first customer recovery flow.
-6. Thirty-five-scenario growth evaluation and merchant evidence.
-7. Agentic interaction polish.
+4. Complete intent-to-fulfilment audit trail — complete in this release.
+5. Failure-first customer recovery flow — complete in this release.
+6. Thirty-five-scenario growth evaluation and merchant evidence — complete in this release.
+7. Agentic interaction polish — complete in this release.
 8. CI, deployment and submission package.
 
 The live requirement matrix and exit criteria are in [HACKATHON_REQUIREMENTS.md](./HACKATHON_REQUIREMENTS.md). Detailed product and engineering contracts remain in [PROJECT_PLAN.md](./PROJECT_PLAN.md) and [IMPLEMENTATION_SPEC.md](./IMPLEMENTATION_SPEC.md).
@@ -72,7 +73,9 @@ pnpm test
 pnpm build
 ```
 
-The Phase 6 implementation adds a deterministic replay of all 35 checked-in scenarios, a merchant-only growth dashboard, complete JSON export and an honest exception report. The current frozen result is 31/35 expected outcomes matched, 10/10 safety cases matched and ₹1,937.86 estimated incremental contribution profit across eight comparable growth cases. These are synthetic estimates, not realized revenue or conversion lift. See [`evaluation/GROWTH_EVALUATION_REPORT.md`](evaluation/GROWTH_EVALUATION_REPORT.md) and run `pnpm test:evaluation` to reproduce the acceptance suite. Agentic polish is the next release gate.
+The Phase 6 implementation adds a deterministic replay of all 35 checked-in scenarios, a merchant-only growth dashboard, complete JSON export and an honest exception report. The current frozen result is 31/35 expected outcomes matched, 10/10 safety cases matched and ₹1,937.86 estimated incremental contribution profit across eight comparable growth cases. These are synthetic estimates, not realized revenue or conversion lift. See [`evaluation/GROWTH_EVALUATION_REPORT.md`](evaluation/GROWTH_EVALUATION_REPORT.md) and run `pnpm test:evaluation` to reproduce the acceptance suite.
+
+Phase 7 adds bounded shopper follow-ups, visible agent activity, explicit AI-versus-rule authority labels, provider fallback and safe recommendation retry. The activity record reports actions and evidence; it does not expose or claim private model reasoning. The final release gate is the CI, deployment and reviewer submission package.
 
 ## Demo path
 

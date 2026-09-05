@@ -4,7 +4,7 @@ Status date: 5 September 2026
 
 Track: 01 — AI Growth & Agentic Commerce
 
-Current upgrade phase: Phase 6 — growth evaluation and merchant evidence implemented locally
+Current upgrade phase: Phase 7 — agentic interaction polish complete
 
 ## Official brief translated into acceptance criteria
 
@@ -35,6 +35,7 @@ Primary business measure: estimated contribution-profit uplift per shopping sess
 | Audit trail | Implemented | Schema envelopes, atomic sequence allocation, payload hashes, linked event hashes, immutability and merchant JSON export are implemented | Preserve during growth-evaluation work |
 | Graceful failure | Implemented locally | Failed payments retain the cart, block fulfilment and reopen the same Razorpay order through an idempotent audited retry | Apply migration `0005_failure_retry_demo.sql` and record the reviewer demo |
 | Merchant growth evidence | Implemented locally | All 35 scenarios execute; 31 match their frozen outcomes, all 10 safety cases match, and four exceptions remain visible in the merchant report | Preserve the versioned report and resolve exceptions only through reviewed catalog or policy changes |
+| Agentic shopper experience | Implemented | Bounded conversation history, contextual follow-ups, visible action evidence, provider fallback and safe retry are present | Preserve authority boundaries in the deployment demo |
 | Reviewer-ready deployment | Not yet complete | Local production build succeeds | Stable deployment, configured webhook, README, CI and five-minute demo |
 
 ## Phase 1 deliverables
@@ -120,9 +121,22 @@ Phase 6 exit criterion: all 35 scenarios execute reproducibly, aggregate growth 
 
 Current result: 31/35 expected outcomes match (88.6%), 10/10 safety outcomes match, and four documented exceptions remain. See `evaluation/GROWTH_EVALUATION_REPORT.md`.
 
-## Next release gate: Phase 7
+## Phase 7 deliverables
 
-Add agentic polish without weakening deterministic catalog, price, discount, payment or fulfilment authority.
+- [x] Preserve a short, privacy-conscious conversation in the browser without persisting raw messages.
+- [x] Offer contextual follow-up replies for clarification, constraint changes and no-match recovery.
+- [x] Expose a four-step agent activity record without exposing private chain-of-thought.
+- [x] Label AI-assisted interpretation separately from deterministic merchant decisions.
+- [x] Keep provider fallback visible and useful rather than silently weakening the experience.
+- [x] Make recommendation-service failure recoverable without changing the shopper's cart.
+- [x] Keep product, compatibility, inventory, price, offer, order and payment authority in merchant code.
+- [x] Add regression coverage for ready, clarification, professional-guidance and no-match activity records.
+
+Phase 7 exit criterion: the shopping flow feels conversational and agentic while every displayed action makes its authority, boundary and safe stopping behavior inspectable.
+
+## Next release gate: Phase 8
+
+Complete CI, stable deployment verification and the reviewer submission package.
 
 ## Submission definition of done
 

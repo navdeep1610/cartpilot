@@ -46,7 +46,27 @@ interface RecommendationResponse {
   safetyNotes: string[];
   clarificationQuestion: string | null;
   intentSource: "gemini" | "deterministic_fallback";
+  agentRun: {
+    runId: string;
+    mode: "gemini_assisted" | "deterministic_fallback";
+    outcome: "ready" | "clarification_required" | "professional_guidance" | "no_match";
+    steps: Array<{
+      stepId: "understand" | "catalog" | "safety" | "recommend";
+      title: string;
+      detail: string;
+      status: "complete" | "needs_input" | "protected";
+      authority: "ai_assisted" | "deterministic";
+    }>;
+    boundary: string;
+  };
+  suggestedReplies: string[];
   disclaimer: string;
+}
+
+interface AssistantTurn {
+  id: string;
+  role: "shopper" | "assistant";
+  message: string;
 }
 
 interface CustomerOfferCandidate {
@@ -215,6 +235,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   const [lastIntentMessage, setLastIntentMessage] = useState("Review my cart");
   const [recommendation, setRecommendation] = useState<RecommendationResponse | null>(null);
   const [recommendationStatus, setRecommendationStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [assistantTurns, setAssistantTurns] = useState<AssistantTurn[]>([]);
   const [offer, setOffer] = useState<OfferResponse | null>(null);
   const [offerStatus, setOfferStatus] = useState<"idle" | "loading" | "error">("idle");
   const [acceptedOffer, setAcceptedOffer] = useState<OfferResponse | null>(null);
@@ -227,6 +248,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     orderKey: string;
     verificationKey: string;
   } | null>(null);
+  const assistantConversationRef = useRef<HTMLDivElement | null>(null);
 
   const categories = useMemo(
     () => ["All", ...new Set(catalog.products.map((product) => product.productType))],
@@ -366,25 +388,61 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     };
   }, [cartSignature, lastIntentMessage, acceptedOffer, cartLines]);
 
-  async function requestRoutine(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    const conversation = assistantConversationRef.current;
+    if (conversation) conversation.scrollTop = conversation.scrollHeight;
+  }, [assistantTurns]);
+
+  function requestRoutine(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const message = assistantMessage.trim();
     if (message.length < 3) return;
+    void runRoutine(message, message);
+  }
+
+  async function runRoutine(displayMessage: string, requestMessage: string) {
     setRecommendationStatus("loading");
-    setLastIntentMessage(message);
+    setLastIntentMessage(requestMessage);
+    setAssistantTurns((current) => [
+      ...current,
+      { id: crypto.randomUUID(), role: "shopper", message: displayMessage } satisfies AssistantTurn,
+    ].slice(-6));
     try {
       const response = await fetch("/api/v1/recommendations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message: requestMessage }),
       });
       const data = (await response.json()) as RecommendationResponse | { message?: string };
       if (!response.ok || !("status" in data)) throw new Error("Recommendation unavailable");
       setRecommendation(data);
+      setAssistantTurns((current) => [
+        ...current,
+        ({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          message: data.clarificationQuestion ?? data.summary,
+        } satisfies AssistantTurn),
+      ].slice(-6));
       setRecommendationStatus("idle");
     } catch {
       setRecommendationStatus("error");
+      setAssistantTurns((current) => [
+        ...current,
+        ({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          message: "I could not reach the recommendation service. Your cart is unchanged, and you can retry safely.",
+        } satisfies AssistantTurn),
+      ].slice(-6));
     }
+  }
+
+  function continueRoutine(reply: string) {
+    const contextLimit = Math.max(0, 950 - reply.length);
+    const contextualRequest = `${lastIntentMessage.slice(0, contextLimit)}\nShopper follow-up: ${reply}`;
+    setAssistantMessage(reply);
+    void runRoutine(reply, contextualRequest);
   }
 
   function openProfile() {
@@ -722,6 +780,22 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
             <div><p className="eyebrow">Shopping assistant</p><h2 id="assistant-title">What does your skin need?</h2></div>
           </div>
           <p>Tell me your skin type and one concern. I will suggest a short routine from products the merchant actually sells.</p>
+          {assistantTurns.length > 0 && (
+            <div ref={assistantConversationRef} className="assistant-conversation" aria-live="polite" aria-label="Conversation with CartPilot">
+              {assistantTurns.map((turn) => (
+                <div className={`assistant-turn ${turn.role}`} key={turn.id}>
+                  <span>{turn.role === "shopper" ? "You" : "CartPilot"}</span>
+                  <p>{turn.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {recommendationStatus === "loading" && (
+            <div className="agent-progress" role="status">
+              <span><i /> Understanding your request</span>
+              <span><i /> Checking catalog and safety rules</span>
+            </div>
+          )}
           <form className="assistant-form" onSubmit={requestRoutine}>
             <label htmlFor="skin-concern">Your skin and shopping goal</label>
             <textarea id="skin-concern" value={assistantMessage} onChange={(event) => setAssistantMessage(event.target.value)} maxLength={1000} />
@@ -730,7 +804,20 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
               {recommendationStatus !== "loading" && <ArrowRight size={17} aria-hidden="true" />}
             </button>
           </form>
-          {recommendationStatus === "error" && <p className="inline-error" role="alert">I could not build a routine just now. The catalog is still available below.</p>}
+          {recommendation?.suggestedReplies.length ? (
+            <div className="assistant-replies" aria-label="Suggested follow-up messages">
+              <span>Continue the conversation</span>
+              <div>{recommendation.suggestedReplies.map((reply) => (
+                <button type="button" disabled={recommendationStatus === "loading"} key={reply} onClick={() => continueRoutine(reply)}>{reply}</button>
+              ))}</div>
+            </div>
+          ) : null}
+          {recommendationStatus === "error" && (
+            <div className="assistant-recovery" role="alert">
+              <p>I could not build a routine just now. Your cart was not changed.</p>
+              <button type="button" onClick={() => void runRoutine("Retry my last request", lastIntentMessage)}>Retry safely</button>
+            </div>
+          )}
           <small>Demo skincare guidance only. Not medical advice.</small>
         </aside>
       </section>
@@ -743,18 +830,39 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
             <p>{recommendation.clarificationQuestion ?? recommendation.summary}</p>
             <span className="source-pill"><ShieldCheck size={15} /> {recommendation.intentSource === "gemini" ? "Gemini understood your request" : "Safe fallback used"}</span>
           </div>
-          {recommendation.items.length > 0 && (
-            <div className="routine-items">
-              {recommendation.items.map((item, index) => (
-                <article key={item.variantId}>
-                  <span className="routine-order">{String(index + 1).padStart(2, "0")}</span>
-                  <div><small>{item.routineStep.replaceAll("_", " ")}</small><h3>{item.productName}</h3><p>{item.reason}</p></div>
-                  <strong>{formatInr(item.pricePaise)}</strong>
-                </article>
-              ))}
-              <button className="button button-dark" type="button" onClick={addRoutine}>Add the routine to cart</button>
+          <div className="routine-output">
+            <div className="agent-run-card">
+              <div className="agent-run-heading">
+                <div><p className="eyebrow">Agent activity</p><h3>What CartPilot did</h3></div>
+                <span>{recommendation.agentRun.runId.slice(0, 8)}</span>
+              </div>
+              <ol>
+                {recommendation.agentRun.steps.map((step) => (
+                  <li className={step.status} key={step.stepId}>
+                    <span className="agent-step-icon">{step.status === "complete" ? <Check size={15} /> : <ShieldCheck size={15} />}</span>
+                    <div>
+                      <strong>{step.title}</strong>
+                      <p>{step.detail}</p>
+                      <small>{step.authority === "ai_assisted" ? "AI-assisted interpretation" : "Deterministic merchant rule"}</small>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <p className="agent-boundary"><LockKeyhole size={15} /> {recommendation.agentRun.boundary}</p>
             </div>
-          )}
+            {recommendation.items.length > 0 && (
+              <div className="routine-items">
+                {recommendation.items.map((item, index) => (
+                  <article key={item.variantId}>
+                    <span className="routine-order">{String(index + 1).padStart(2, "0")}</span>
+                    <div><small>{item.routineStep.replaceAll("_", " ")}</small><h3>{item.productName}</h3><p>{item.reason}</p></div>
+                    <strong>{formatInr(item.pricePaise)}</strong>
+                  </article>
+                ))}
+                <button className="button button-dark" type="button" onClick={addRoutine}>Add the routine to cart</button>
+              </div>
+            )}
+          </div>
         </section>
       )}
 

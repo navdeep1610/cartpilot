@@ -394,6 +394,67 @@ h3 { margin-bottom: 8px; font-size: 1.18rem; }
 .assistant-card h2 { margin: 0; font-family: inherit; font-size: clamp(1.45rem, 2.2vw, 2rem); }
 .assistant-card > p { color: #c8d5cd; }
 
+.assistant-conversation {
+  display: flex;
+  max-height: 230px;
+  flex-direction: column;
+  gap: 9px;
+  margin: 18px 0;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
+.assistant-turn {
+  max-width: 88%;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 16px 16px 16px 5px;
+  background: rgba(255, 255, 255, .1);
+}
+
+.assistant-turn.shopper {
+  align-self: end;
+  border-radius: 16px 16px 5px;
+  background: rgba(240, 200, 133, .16);
+}
+
+.assistant-turn span {
+  display: block;
+  margin-bottom: 3px;
+  color: #f0c885;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.assistant-turn p { margin: 0; color: #edf3ef; font-size: .84rem; }
+
+.agent-progress {
+  display: grid;
+  gap: 7px;
+  margin: 15px 0;
+  color: #dce8e0;
+  font-size: .8rem;
+}
+
+.agent-progress span { display: flex; align-items: center; gap: 8px; }
+.agent-progress i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f0c885;
+  box-shadow: 0 0 0 5px rgba(240, 200, 133, .12);
+  animation: agent-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.agent-progress span:last-child i { animation-delay: .35s; }
+
+@keyframes agent-pulse {
+  from { opacity: .45; transform: scale(.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 .prompt-example {
   margin: 22px 0;
   padding: 16px;
@@ -433,6 +494,36 @@ h3 { margin-bottom: 8px; font-size: 1.18rem; }
   margin-top: 18px;
   color: #aebfb4;
 }
+
+.assistant-replies { margin-top: 15px; }
+.assistant-replies > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #c8d5cd;
+  font-size: .75rem;
+  font-weight: 700;
+}
+.assistant-replies > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.assistant-replies button,
+.assistant-recovery button {
+  border: 1px solid rgba(240, 200, 133, .48);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, .08);
+  color: #f8f6ef;
+  cursor: pointer;
+  font-size: .75rem;
+  font-weight: 700;
+}
+
+.assistant-recovery {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(255, 190, 172, .25);
+  border-radius: 14px;
+  background: rgba(112, 39, 31, .18);
+}
+.assistant-recovery p { margin: 0 0 8px; color: #ffd6cb; font-size: .84rem; }
 
 .shop-section,
 .how-section { padding: clamp(64px, 8vw, 110px) clamp(20px, 5vw, 76px); }
@@ -606,6 +697,54 @@ button:disabled {
   flex-direction: column;
   gap: 10px;
 }
+
+.routine-output { display: flex; min-width: 0; flex-direction: column; gap: 18px; }
+
+.agent-run-card {
+  padding: 20px;
+  border: 1px solid #cfdbd1;
+  border-radius: 20px;
+  background: rgba(255, 253, 248, .72);
+}
+
+.agent-run-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.agent-run-heading h3 { margin: 0; font-size: 1.25rem; }
+.agent-run-heading > span {
+  border: 1px solid #ced9d0;
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: var(--muted);
+  font-family: monospace;
+  font-size: .68rem;
+}
+
+.agent-run-card ol { display: grid; gap: 13px; margin: 18px 0; padding: 0; list-style: none; }
+.agent-run-card li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 11px; }
+.agent-step-icon {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  border-radius: 50%;
+  background: #dcebe2;
+  color: var(--forest);
+}
+.agent-run-card li.needs_input .agent-step-icon { background: #f5e8cd; color: #8a6025; }
+.agent-run-card li.protected .agent-step-icon { background: #f3dcda; color: var(--danger); }
+.agent-run-card li strong { display: block; font-size: .88rem; }
+.agent-run-card li p { margin: 3px 0; color: var(--muted); font-size: .78rem; }
+.agent-run-card li small { color: var(--amber); font-size: .67rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
+.agent-boundary {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  margin: 0;
+  padding-top: 13px;
+  border-top: 1px solid #dbe3dc;
+  color: var(--muted);
+  font-size: .74rem;
+}
+.agent-boundary svg { flex: 0 0 auto; margin-top: 1px; color: var(--forest); }
 
 .routine-items article {
   display: grid;
@@ -1201,6 +1340,7 @@ button:disabled {
   *, *::before, *::after { transition-duration: .01ms !important; }
   .spin { animation: none; }
   .bundle-banner-inner { animation: none; }
+  .agent-progress i { animation: none; }
 }
 
 /* Glassy Botanical theme: visual overrides only. */
