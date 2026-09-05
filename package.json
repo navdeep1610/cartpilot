@@ -14,7 +14,7 @@
     "start": "next start",
     "format:check": "git diff --check",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit --incremental false",
+    "typecheck": "next typegen && tsc --noEmit --incremental false",
     "test": "vitest run",
     "test:evaluation": "vitest run src/server/evaluation/growth-evaluation.test.ts",
     "test:e2e": "playwright test",
