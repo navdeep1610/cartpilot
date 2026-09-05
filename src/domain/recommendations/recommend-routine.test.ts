@@ -30,4 +30,23 @@ describe("recommendRoutine", () => {
     expect(result.items.every((item) => item.productType.toLowerCase() !== "serum")).toBe(true);
     expect(result.items.every((item) => item.productId !== "SRM-005")).toBe(true);
   });
+
+  it("honors explicitly requested routine steps within the stated budget", () => {
+    const result = recommendRoutine(
+      snapshot,
+      extractFallbackIntent("I need a hydrating toner and something to cleanse my dry skin under ₹1,000"),
+    );
+
+    expect(result.items.map((item) => item.productId)).toEqual(["CLN-001", "TON-001"]);
+    expect(result.items.reduce((total, item) => total + item.pricePaise, 0)).toBeLessThanOrEqual(100_000);
+  });
+
+  it("pairs a dry-skin retinol request with a compatible moisturizer", () => {
+    const result = recommendRoutine(
+      snapshot,
+      extractFallbackIntent("I want to start retinol but my skin becomes dry under ₹1,400"),
+    );
+
+    expect(result.items.map((item) => item.productId)).toEqual(["SRM-005", "MST-002"]);
+  });
 });

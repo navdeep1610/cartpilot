@@ -2,17 +2,17 @@ import type { NormalizedCustomerIntent, PriceSignal } from "@/domain/intent/type
 import { inrToPaise } from "@/domain/money";
 
 const productTerms: Record<string, string[]> = {
-  cleanser: ["cleanser", "face wash", "wash face"],
-  serum: ["serum"],
+  cleanser: ["cleanser", "cleanse", "face wash", "wash face"],
+  serum: ["serum", "retinol"],
   moisturizer: ["moisturizer", "moisturiser", "cream"],
   sunscreen: ["sunscreen", "spf", "sun protection"],
   toner: ["toner", "tonner"],
-  exfoliant: ["exfoliant", "exfoliator", "scrub"],
-  acne_treatment: ["spot treatment", "acne gel"],
+  exfoliant: ["exfoliant", "exfoliation", "exfoliator", "scrub"],
+  acne_treatment: ["spot treatment", "acne gel", "benzoyl peroxide"],
   mask: ["mask"],
   eye_care: ["eye cream", "eye serum", "under eye"],
   lip_care: ["lip balm", "lip care"],
-  bundle: ["kit", "bundle", "routine"],
+  bundle: ["kit", "bundle"],
 };
 
 const concernTerms: Record<string, string[]> = {

@@ -72,7 +72,7 @@ pnpm test
 pnpm build
 ```
 
-The Phase 5 implementation passes lint, type checking, unit and regression tests, runtime integrity checks and the production build. New checkouts receive a complete intent-to-payment audit trace with atomic sequencing, immutable rows, schema envelopes, linked SHA-256 hashes, merchant verification and sanitized JSON export. A failed payment retains its cart, keeps fulfilment blocked and can idempotently reopen the same Razorpay Test order; the retry is counted and audited for the merchant. Apply Supabase migrations through `0005_failure_retry_demo.sql` before exercising the feature. The full growth evaluation suite remains the next release gate.
+The Phase 6 implementation adds a deterministic replay of all 35 checked-in scenarios, a merchant-only growth dashboard, complete JSON export and an honest exception report. The current frozen result is 31/35 expected outcomes matched, 10/10 safety cases matched and ₹1,937.86 estimated incremental contribution profit across eight comparable growth cases. These are synthetic estimates, not realized revenue or conversion lift. See [`evaluation/GROWTH_EVALUATION_REPORT.md`](evaluation/GROWTH_EVALUATION_REPORT.md) and run `pnpm test:evaluation` to reproduce the acceptance suite. Agentic polish is the next release gate.
 
 ## Demo path
 

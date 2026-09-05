@@ -123,7 +123,7 @@ export function selectOffer(
   const customerWantsLowerTotal = intent.priceSignal !== "none";
   const drafts = [
     baselineDraft,
-    ...(customerWantsLowerTotal ? [] : generateBundleCandidates(snapshot, cartLines)),
+    ...generateBundleCandidates(snapshot, cartLines),
     ...(customerWantsLowerTotal ? [] : generateCrossSellCandidates(snapshot, cartLines)),
     ...generateSubstituteCandidates(snapshot, cartLines, intent),
     ...generateDiscountCandidates(snapshot, baselineDraft, intent),
@@ -188,7 +188,7 @@ function generateBundleCandidates(snapshot: CatalogSnapshot, cartLines: readonly
     if (!components || components.length === 0) continue;
     const componentVariants = new Set(components.map((component) => component.componentVariantId));
     const cartIsSubset = [...cartVariants].every((variantId) => componentVariants.has(variantId));
-    if (!cartIsSubset || componentVariants.size <= cartVariants.size) continue;
+    if (!cartIsSubset || componentVariants.size < cartVariants.size) continue;
     const bundleVariant = snapshot.variants.get(bundleVariantId);
     if (!bundleVariant) continue;
 
@@ -314,23 +314,23 @@ function generateDiscountCandidates(
     .filter((rate) => snapshot.discountPolicy.discountLadderBps.includes(rate))
     .filter((rate) => rate <= maxVariantDiscountBps)
     .sort((left, right) => left - right);
-  const selectedRate =
-    triggerId === "BUDGET_GAP"
-      ? allowedRates.find((rate) => gross - roundHalfUp(gross * rate, 10_000) <= (intent.budgetPaise ?? 0))
-      : allowedRates[0];
-  if (!selectedRate) return [];
+  const effectiveRates = triggerId === "BUDGET_GAP"
+    ? allowedRates.filter((rate) => gross - roundHalfUp(gross * rate, 10_000) <= (intent.budgetPaise ?? 0))
+    : allowedRates;
 
-  const discountTotal = roundHalfUp(gross * selectedRate, 10_000);
-  const allocations = allocateDiscount(discountTotal, baseline.lines.map((line) => variantOrThrow(snapshot, line.variantId).pricePaise * line.quantity));
-  return [{
-    candidateId: `OFR-DISCOUNT-${triggerId}-${selectedRate}`,
-    candidateType: "discounted_product",
-    lines: baseline.lines.map((line, index) => ({ ...line, lineDiscountPaise: allocations[index] })),
-    addedProductIds: [],
-    bundleProductId: null,
-    discountRateBps: selectedRate,
-    discountTriggerId: triggerId,
-  }];
+  return effectiveRates.map((rate) => {
+    const discountTotal = roundHalfUp(gross * rate, 10_000);
+    const allocations = allocateDiscount(discountTotal, baseline.lines.map((line) => variantOrThrow(snapshot, line.variantId).pricePaise * line.quantity));
+    return {
+      candidateId: `OFR-DISCOUNT-${triggerId}-${rate}`,
+      candidateType: "discounted_product" as const,
+      lines: baseline.lines.map((line, index) => ({ ...line, lineDiscountPaise: allocations[index] })),
+      addedProductIds: [],
+      bundleProductId: null,
+      discountRateBps: rate,
+      discountTriggerId: triggerId,
+    };
+  });
 }
 
 function generateThresholdCandidates(snapshot: CatalogSnapshot, baseline: CandidateDraft): CandidateDraft[] {

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, LogOut, ShieldCheck } from "lucide-react";
 import { logoutMerchant } from "@/app/merchant/login/actions";
 
-type MerchantSection = "orders" | "customers" | "payment-safety";
+type MerchantSection = "orders" | "customers" | "growth" | "payment-safety";
 
 export function MerchantSidebar({
   active,
@@ -20,6 +20,7 @@ export function MerchantSidebar({
       <nav aria-label="Merchant dashboard sections">
         <Link className={active === "orders" ? "active" : undefined} href="/merchant#orders">Orders</Link>
         <Link className={active === "customers" ? "active" : undefined} href="/merchant/customers">Registered customers</Link>
+        <Link className={active === "growth" ? "active" : undefined} href="/merchant/growth">Growth evidence</Link>
         <Link className={active === "payment-safety" ? "active" : undefined} href="/merchant/payment-safety">Payment safety</Link>
       </nav>
       <div className="merchant-nav-footer">

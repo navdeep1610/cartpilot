@@ -124,4 +124,28 @@ describe("selectOffer", () => {
     expect(cleanserCrossSell?.status).toBe("rejected");
     expect(cleanserCrossSell?.rejectionReasonCodes).toContain("COMPATIBILITY_BLOCKED");
   });
+
+  it("evaluates a cheaper prepriced bundle for the matching component cart", () => {
+    const decision = selectOffer(
+      snapshot,
+      [
+        { variantId: "CLN-001-100ML", quantity: 1 },
+        { variantId: "SRM-002-15ML", quantity: 1 },
+        { variantId: "SUN-003-50G", quantity: 1 },
+      ],
+      extractFallbackIntent("I need these products but can spend ₹1,400"),
+    );
+
+    expect(decision.candidates.some((candidate) => candidate.bundleProductId === "BND-002")).toBe(true);
+  });
+
+  it("evaluates every approved price-objection discount step", () => {
+    const decision = selectOffer(
+      snapshot,
+      [{ variantId: "SRM-002-15ML", quantity: 1 }],
+      extractFallbackIntent("The vitamin C serum is too expensive"),
+    );
+
+    expect(decision.candidates.filter((candidate) => candidate.discountTriggerId === "PRICE_OBJECTION").map((candidate) => candidate.discountRateBps)).toEqual([300, 500, 800]);
+  });
 });

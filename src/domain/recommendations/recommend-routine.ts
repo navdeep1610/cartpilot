@@ -75,6 +75,10 @@ export function recommendRoutine(
     for (const candidate of stepCandidates) {
       const variant = defaultAvailableVariant(snapshot, candidate.profile.productId);
       if (!variant) continue;
+      if (
+        intent.budgetPaise !== null &&
+        selected.reduce((total, item) => total + item.variant.pricePaise, 0) + variant.pricePaise > intent.budgetPaise
+      ) continue;
       const trialIds = [...selected.map((item) => item.profile.productId), candidate.profile.productId];
       const compatibility = evaluateCompatibility(snapshot, trialIds);
       const constraints = evaluateCustomerConstraints(snapshot, trialIds, intent);
@@ -145,15 +149,37 @@ function scoreProfile(snapshot: CatalogSnapshot, profile: ProductProfile, intent
   const typeKey = product.productType.toLowerCase().replaceAll(" ", "_");
   const requestScore = intent.requestedProductTypes.includes(typeKey) ? 60 : 0;
   const directMatchScore = intent.matchedProductIds.includes(product.productId) ? 100 : 0;
-  return skinScore + concernScore + requestScore + directMatchScore + Math.max(0, 20 - profile.routineOrder);
+  const message = intent.messageSummary.toLowerCase();
+  const activeMentionScore = profile.declaredActives.some((active) =>
+    active.split("_").some((token) => token.length >= 5 && message.includes(token)),
+  ) ? 80 : 0;
+  return skinScore + concernScore + requestScore + directMatchScore + activeMentionScore + Math.max(0, 20 - profile.routineOrder);
 }
 
 function chooseDesiredSteps(intent: NormalizedCustomerIntent): string[] {
-  if (intent.requestedProductTypes.length > 0 && intent.shoppingGoal === "find_single_product") {
-    return intent.requestedProductTypes.map(productTypeToStep);
+  const requestedTypes = intent.requestedProductTypes.filter((type) => type !== "bundle");
+  const requestedSteps = [...new Set(requestedTypes.map(productTypeToStep))];
+  if (requestedSteps.length > 1 || (requestedSteps.length > 0 && intent.priceSignal !== "none")) {
+    return requestedSteps.sort((left, right) => stepOrder(left) - stepOrder(right));
+  }
+  if (requestedTypes.length === 1) {
+    const requestedType = requestedTypes[0];
+    if (intent.shoppingGoal === "complete_routine" && requestedType === "toner") {
+      return ["cleanse", "tone", "moisturize"];
+    }
+    if (["serum", "exfoliant", "acne_treatment"].includes(requestedType)) {
+      return [productTypeToStep(requestedType), "moisturize"];
+    }
+    return requestedSteps;
   }
   if (intent.concerns.includes("sun_protection")) return ["cleanse", "moisturize", "protect"];
   return preferredStepOrder.filter((step) => ["cleanse", "treat", "moisturize", "protect"].includes(step));
+}
+
+function stepOrder(step: string): number {
+  const order = ["cleanse", "tone", "exfoliate", "treat", "spot_treat", "moisturize", "protect", "mask", "eye_care", "lip_care"];
+  const index = order.indexOf(step);
+  return index < 0 ? order.length : index;
 }
 
 function productTypeToStep(productType: string): string {

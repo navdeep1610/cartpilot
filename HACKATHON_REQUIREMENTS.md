@@ -4,7 +4,7 @@ Status date: 5 September 2026
 
 Track: 01 — AI Growth & Agentic Commerce
 
-Current upgrade phase: Phase 5 — failure and safe-retry demonstration implemented locally
+Current upgrade phase: Phase 6 — growth evaluation and merchant evidence implemented locally
 
 ## Official brief translated into acceptance criteria
 
@@ -34,7 +34,7 @@ Primary business measure: estimated contribution-profit uplift per shopping sess
 | Payment-gated | Implemented | Transactional payment claims and transitions require matching captured-payment plus paid-order evidence | Preserve with end-to-end Razorpay Test Mode evidence |
 | Audit trail | Implemented | Schema envelopes, atomic sequence allocation, payload hashes, linked event hashes, immutability and merchant JSON export are implemented | Preserve during growth-evaluation work |
 | Graceful failure | Implemented locally | Failed payments retain the cart, block fulfilment and reopen the same Razorpay order through an idempotent audited retry | Apply migration `0005_failure_retry_demo.sql` and record the reviewer demo |
-| Merchant growth evidence | Not yet complete | Profit calculations exist in the engine | Run and publish all 35 evaluation scenarios and aggregate metrics |
+| Merchant growth evidence | Implemented locally | All 35 scenarios execute; 31 match their frozen outcomes, all 10 safety cases match, and four exceptions remain visible in the merchant report | Preserve the versioned report and resolve exceptions only through reviewed catalog or policy changes |
 | Reviewer-ready deployment | Not yet complete | Local production build succeeds | Stable deployment, configured webhook, README, CI and five-minute demo |
 
 ## Phase 1 deliverables
@@ -105,9 +105,24 @@ Phase 4 exit criterion: a merchant can reconstruct a new checkout trace and dete
 
 Phase 5 exit criterion: a failed Test payment can be retried safely without a second order or duplicate fulfilment, and the merchant can verify the recovery in the audit trail.
 
-## Next release gate: Phase 6
+## Phase 6 deliverables
 
-Run the complete growth evaluation and publish reproducible merchant evidence across all 35 documented scenarios.
+- [x] Parse and validate all 35 versioned synthetic scenarios.
+- [x] Replay recommendation and offer cases through the production deterministic engines.
+- [x] Replay failure-injection cases without external provider calls.
+- [x] Compare every actual field with the frozen expectation.
+- [x] Publish baseline and assisted revenue, AOV and contribution-profit evidence.
+- [x] Keep every exception in both the headline rate and detailed report.
+- [x] Add a merchant-only dashboard and versioned JSON export.
+- [x] Add a dedicated evaluation test command and deterministic replay tests.
+
+Phase 6 exit criterion: all 35 scenarios execute reproducibly, aggregate growth evidence is clearly labelled as synthetic, and mismatches remain visible rather than being omitted from the reported rate.
+
+Current result: 31/35 expected outcomes match (88.6%), 10/10 safety outcomes match, and four documented exceptions remain. See `evaluation/GROWTH_EVALUATION_REPORT.md`.
+
+## Next release gate: Phase 7
+
+Add agentic polish without weakening deterministic catalog, price, discount, payment or fulfilment authority.
 
 ## Submission definition of done
 

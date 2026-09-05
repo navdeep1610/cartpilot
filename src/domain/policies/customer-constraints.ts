@@ -82,10 +82,8 @@ function matchesProfileExclusion(
   const flags = profile.exclusionFlags.map(normalizeToken);
   if (
     intent.skinTypes.includes("sensitive") &&
-    flags.some((flag) => flag.includes("sensitive") || flag.includes("irritated"))
+    flags.some((flag) => flag === "sensitive_or_irritated_skin" || flag === "currently_irritated_skin")
   ) return true;
-  if (intent.skinTypes.includes("oily") && flags.some((flag) => flag.includes("very_oily"))) return true;
-  if (intent.skinTypes.includes("dry") && flags.some((flag) => flag.includes("very_dry"))) return true;
   return false;
 }
 
