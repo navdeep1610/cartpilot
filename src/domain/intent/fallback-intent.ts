@@ -2,7 +2,7 @@ import type { NormalizedCustomerIntent, PriceSignal } from "@/domain/intent/type
 import { inrToPaise } from "@/domain/money";
 
 const productTerms: Record<string, string[]> = {
-  cleanser: ["cleanser", "cleanse", "face wash", "wash face"],
+  cleanser: ["cleanser", "cleanse", "face wash", "facewash", "wash face"],
   serum: ["serum", "retinol"],
   moisturizer: ["moisturizer", "moisturiser", "cream"],
   sunscreen: ["sunscreen", "spf", "sun protection"],

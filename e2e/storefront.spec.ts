@@ -30,6 +30,27 @@ test("the medical boundary stops a commercial recommendation", async ({ page }) 
   await expect(page.getByRole("button", { name: "Add the routine to cart" })).toHaveCount(0);
 });
 
+test("typed follow-ups retain shopper context beyond two messages", async ({ page }) => {
+  await page.goto("/");
+  const composer = page.getByLabel("Your skin and shopping goal");
+  const submit = page.getByRole("button", { name: "Build my routine" });
+
+  for (const message of ["its oily", "facewash", "which one is better for my skin type"]) {
+    await composer.fill(message);
+    const response = page.waitForResponse((candidate) =>
+      candidate.url().includes("/api/v1/recommendations") && candidate.request().method() === "POST",
+    );
+    await submit.click();
+    await expect(composer).toHaveValue("");
+    await response;
+    await expect(submit).toBeEnabled({ timeout: 15_000 });
+  }
+
+  await expect(page.getByRole("heading", { name: /oily skin/i }).last()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add the routine to cart" })).toBeVisible();
+  await expect(page.getByLabel("Conversation with CartPilot")).toContainText("facewash");
+});
+
 test("the merchant area remains access-controlled", async ({ page }) => {
   await page.goto("/merchant");
   await expect(page).toHaveURL(/\/merchant\/login(?:\?|$)/);

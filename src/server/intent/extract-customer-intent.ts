@@ -1,6 +1,11 @@
 import { GoogleGenAI } from "@google/genai";
 import Ajv2020 from "ajv/dist/2020.js";
 import geminiIntentSchema from "../../../schemas/gemini_intent_schema.json" with { type: "json" };
+import {
+  buildShopperIntentMessage,
+  formatConversationTranscript,
+  type ShoppingConversationTurn,
+} from "@/domain/agents/conversation-context";
 import type { CatalogSnapshot } from "@/domain/catalog/types";
 import { extractFallbackIntent } from "@/domain/intent/fallback-intent";
 import type { NormalizedCustomerIntent, PriceSignal } from "@/domain/intent/types";
@@ -30,8 +35,9 @@ const validateStructuredIntent = ajv.compile(geminiIntentSchema);
 export async function extractCustomerIntent(
   message: string,
   snapshot: CatalogSnapshot,
+  conversation: readonly ShoppingConversationTurn[] = [],
 ): Promise<NormalizedCustomerIntent> {
-  const fallback = extractFallbackIntent(message);
+  const fallback = extractFallbackIntent(buildShopperIntentMessage(conversation, message));
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey || process.env.GEMINI_DISABLED === "true") return fallback;
 
@@ -45,9 +51,11 @@ export async function extractCustomerIntent(
       model: process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite",
       contents: [
         "Extract only explicitly stated shopping intent. Do not diagnose, invent skin conditions, infer income, choose discounts, or authorize a purchase.",
+        "Combine explicit facts from earlier SHOPPER turns with the latest SHOPPER message. Never treat CARTPILOT questions as shopper claims. Do not ask again for a skin type or product type already stated by the shopper.",
         "Use only product IDs from this public catalog when a direct match is clear:",
         catalogNames,
-        `Shopper message: ${message}`,
+        "Bounded recent conversation:",
+        formatConversationTranscript(conversation, message),
       ].join("\n\n"),
       config: {
         temperature: 0,
@@ -63,7 +71,11 @@ export async function extractCustomerIntent(
       console.warn(`[CartPilot Gemini] Structured intent failed local validation. issues=${issues || "unknown"}`);
       return fallback;
     }
-    return normalizeStructuredIntent(parsed, snapshot);
+    return preserveConversationFacts(
+      normalizeStructuredIntent(parsed, snapshot),
+      fallback,
+      conversation,
+    );
   } catch (error) {
     const errorType = error instanceof Error ? error.name : "UnknownError";
     const providerStatus = getProviderStatus(error);
@@ -73,6 +85,30 @@ export async function extractCustomerIntent(
     );
     return fallback;
   }
+}
+
+function preserveConversationFacts(
+  aiIntent: NormalizedCustomerIntent,
+  fallback: NormalizedCustomerIntent,
+  conversation: readonly ShoppingConversationTurn[],
+): NormalizedCustomerIntent {
+  const knownAiSkinTypes = aiIntent.skinTypes.filter((skinType) => skinType !== "unknown");
+  const knownFallbackSkinTypes = fallback.skinTypes.filter((skinType) => skinType !== "unknown");
+  const shopperTurnCount = conversation.filter((turn) => turn.role === "shopper").length;
+  const hasEnoughRememberedDetail =
+    shopperTurnCount >= 2 &&
+    knownFallbackSkinTypes.length > 0 &&
+    fallback.requestedProductTypes.length > 0;
+
+  return {
+    ...aiIntent,
+    skinTypes: knownAiSkinTypes.length > 0 ? aiIntent.skinTypes : fallback.skinTypes,
+    requestedProductTypes:
+      aiIntent.requestedProductTypes.length > 0
+        ? aiIntent.requestedProductTypes
+        : fallback.requestedProductTypes,
+    clarificationQuestion: hasEnoughRememberedDetail ? null : aiIntent.clarificationQuestion,
+  };
 }
 
 function getProviderStatus(error: unknown): number | null {

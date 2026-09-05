@@ -37,6 +37,35 @@ describe("Gemini intent schema", () => {
       else process.env.GEMINI_DISABLED = previousDisabled;
     }
   });
+
+  it("preserves earlier shopper facts for a later typed question", async () => {
+    const previousKey = process.env.GEMINI_API_KEY;
+    const previousDisabled = process.env.GEMINI_DISABLED;
+    process.env.GEMINI_API_KEY = "not-a-real-key";
+    process.env.GEMINI_DISABLED = "true";
+
+    try {
+      const intent = await extractCustomerIntent(
+        "which one is better for my skin type",
+        await loadCatalogSnapshot(),
+        [
+          { role: "shopper", message: "its oily" },
+          { role: "assistant", message: "What product or routine can I help you find?" },
+          { role: "shopper", message: "facewash" },
+          { role: "assistant", message: "Are you looking for a specific cleanser type?" },
+        ],
+      );
+
+      expect(intent.skinTypes).toContain("oily");
+      expect(intent.requestedProductTypes).toContain("cleanser");
+      expect(intent.clarificationQuestion).toBeNull();
+    } finally {
+      if (previousKey === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = previousKey;
+      if (previousDisabled === undefined) delete process.env.GEMINI_DISABLED;
+      else process.env.GEMINI_DISABLED = previousDisabled;
+    }
+  });
 });
 
 function visitSchema(value: unknown, onKey: (key: string) => void): void {

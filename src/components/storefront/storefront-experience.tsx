@@ -24,6 +24,11 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { PublicCatalogProduct, PublicCatalogResponse } from "@/domain/catalog/public-catalog";
 import {
+  buildShopperIntentMessage,
+  maximumConversationTurns,
+  type ShoppingConversationTurn,
+} from "@/domain/agents/conversation-context";
+import {
   normalizeCustomerProfile,
   type CustomerProfileData,
   type SavedCustomerProfile,
@@ -67,10 +72,8 @@ interface RecommendationResponse {
   disclaimer: string;
 }
 
-interface AssistantTurn {
+interface AssistantTurn extends ShoppingConversationTurn {
   id: string;
-  role: "shopper" | "assistant";
-  message: string;
 }
 
 interface CustomerOfferCandidate {
@@ -407,21 +410,28 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     const message = assistantMessage.trim();
     if (message.length < 3) return;
     setAssistantMessage("");
-    void runRoutine(message, message);
+    void runRoutine(message);
   }
 
-  async function runRoutine(displayMessage: string, requestMessage: string) {
+  async function runRoutine(
+    displayMessage: string,
+    requestMessage = displayMessage,
+    conversation: readonly AssistantTurn[] = assistantTurns,
+  ) {
     setRecommendationStatus("loading");
-    setLastIntentMessage(requestMessage);
+    setLastIntentMessage(buildShopperIntentMessage(conversation, requestMessage));
     setAssistantTurns((current) => [
       ...current,
       { id: crypto.randomUUID(), role: "shopper", message: displayMessage } satisfies AssistantTurn,
-    ].slice(-6));
+    ].slice(-maximumConversationTurns));
     try {
       const response = await fetch("/api/v1/recommendations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: requestMessage }),
+        body: JSON.stringify({
+          message: requestMessage,
+          conversation: conversation.map(({ role, message }) => ({ role, message })),
+        }),
       });
       const data = (await response.json()) as RecommendationResponse | { message?: string };
       if (!response.ok || !("status" in data)) throw new Error("Recommendation unavailable");
@@ -433,7 +443,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           role: "assistant",
           message: data.clarificationQuestion ?? data.summary,
         } satisfies AssistantTurn),
-      ].slice(-6));
+      ].slice(-maximumConversationTurns));
       setRecommendationStatus("idle");
     } catch {
       setRecommendationStatus("error");
@@ -444,15 +454,13 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           role: "assistant",
           message: "I could not reach the recommendation service. Your cart is unchanged, and you can retry safely.",
         } satisfies AssistantTurn),
-      ].slice(-6));
+      ].slice(-maximumConversationTurns));
     }
   }
 
   function continueRoutine(reply: string) {
-    const contextLimit = Math.max(0, 950 - reply.length);
-    const contextualRequest = `${lastIntentMessage.slice(0, contextLimit)}\nShopper follow-up: ${reply}`;
     setAssistantMessage("");
-    void runRoutine(reply, contextualRequest);
+    void runRoutine(reply);
   }
 
   function openProfile() {
@@ -890,7 +898,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           {recommendationStatus === "error" && (
             <div className="assistant-recovery" role="alert">
               <p>I could not build a routine just now. Your cart was not changed.</p>
-              <button type="button" onClick={() => void runRoutine("Retry my last request", lastIntentMessage)}>Retry safely</button>
+              <button type="button" onClick={() => void runRoutine("Retry my last request", lastIntentMessage, [])}>Retry safely</button>
             </div>
           )}
           <small>Demo skincare guidance only. Not medical advice.</small>
