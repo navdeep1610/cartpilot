@@ -23,10 +23,12 @@ CartPilot follows the challenge's revenue-growth route. Agent-to-agent protocol 
 - Runtime manifest and offer-decision schema validation before commercial results are returned.
 - Integer-paise profit calculations and merchant-controlled margin rules.
 - Exact-cart and exact-total confirmation before order creation.
+- First-checkout personal-details prompt that returns the shopper to the unchanged cart after saving.
 - Razorpay Orders and Standard Checkout in Test Mode.
 - Server-side callback and webhook signature verification.
 - Fulfilment blocked until captured payment evidence is reconciled.
-- Supabase-backed customer profiles, orders and payment events.
+- Supabase-backed customer profiles, customer order history, merchant orders and payment events.
+- Captured purchases move from the cart into the shopper's private **My orders** panel; failed or unfinished payments retain the cart.
 - Protected merchant portal using Supabase Auth and an allowlisted merchant email.
 
 ## Current upgrade programme
@@ -118,7 +120,9 @@ The LLM is advisory. It cannot select catalog eligibility, set a price or discou
 3. Add products and inspect the profit-aware offer.
 4. Choose the offer or keep the baseline cart.
 5. Confirm the exact total.
-6. Complete Razorpay Test Checkout.
-7. Review the resulting payment evidence in the protected merchant portal.
+6. Save personal details when prompted and return to the same cart.
+7. Complete Razorpay Test Checkout.
+8. Confirm that the purchased products leave the cart and appear under **My orders**.
+9. Review the resulting payment evidence in the protected merchant portal.
 
 The repository engineering package is complete only when CI passes. The hackathon submission is complete only after every account-owner item in [the release checklist](submission/RELEASE_CHECKLIST.md), including successful and failed-payment evidence through the stable webhook, is checked.

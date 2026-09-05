@@ -78,6 +78,8 @@ textarea:focus-visible {
 
 .header-actions { display: flex; align-items: center; gap: 8px; }
 
+.orders-button,
+.orders-button,
 .profile-button,
 .cart-button {
   display: inline-flex;
@@ -92,7 +94,9 @@ textarea:focus-visible {
   font-weight: 650;
 }
 
+.orders-button,
 .profile-button { border: 1px solid var(--line); background: var(--white); padding-right: 14px; }
+.orders-button span,
 .profile-button span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .cart-button span {
@@ -1014,6 +1018,108 @@ button:disabled {
 .payment-security p { margin-bottom: 0; color: #536a5a; font-size: .8rem; }
 .device-storage-note { display: block; margin-top: 14px; color: var(--muted); }
 
+.orders-drawer { width: min(560px, 100%); }
+.orders-intro { margin: 24px 0 18px; color: var(--muted); }
+.customer-orders-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  margin: auto 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 22px;
+  background: rgba(255, 255, 255, .62);
+  color: var(--forest);
+}
+.customer-orders-message > svg { flex: 0 0 auto; }
+.customer-orders-message h3 { margin: 0 0 5px; color: var(--ink); }
+.customer-orders-message p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.5; }
+.customer-orders-message button {
+  margin-top: 13px;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 13px;
+  background: var(--forest);
+  color: var(--paper);
+  cursor: pointer;
+  font-weight: 800;
+}
+.customer-orders-message.error { color: var(--danger); }
+.customer-order-list { display: grid; gap: 14px; }
+.customer-order-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .68);
+}
+.customer-order-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(220, 235, 226, .52);
+}
+.customer-order-card > header > div { min-width: 0; }
+.customer-order-card > header small { color: var(--muted); font-size: .65rem; font-weight: 800; text-transform: uppercase; }
+.customer-order-card > header h3 { margin: 3px 0; font-size: .86rem; overflow-wrap: anywhere; }
+.customer-order-card > header p { margin: 0; color: var(--muted); font-size: .7rem; }
+.customer-order-card > header > span {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: #dceee1;
+  color: #24643e;
+  font-size: .67rem;
+  font-weight: 850;
+}
+.customer-order-lines { display: grid; padding: 5px 16px; }
+.customer-order-lines > div {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.customer-order-lines > div:last-child { border-bottom: 0; }
+.customer-order-lines .cart-thumb { width: 54px; height: 62px; }
+.customer-order-lines small,
+.customer-order-lines span { display: block; color: var(--muted); font-size: .68rem; }
+.customer-order-lines strong { font-size: .8rem; }
+.customer-order-lines > div > strong { white-space: nowrap; }
+.customer-order-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 13px 16px 8px;
+}
+.customer-order-total span { color: #287148; font-size: .72rem; font-weight: 750; }
+.customer-order-total strong { font-size: 1rem; }
+.customer-order-mode {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 16px 14px;
+  color: #76531e;
+  font-size: .67rem;
+}
+.orders-privacy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 16px 3px 0;
+  color: var(--muted);
+  font-size: .7rem;
+}
+.orders-privacy-note svg { flex: 0 0 auto; margin-top: 1px; }
+
 .quantity-control { display: flex; align-items: center; gap: 7px; }
 .quantity-control button {
   display: grid;
@@ -1301,7 +1407,9 @@ button:disabled {
   .site-header nav { display: none; }
   .how-grid { grid-template-columns: 1fr; }
   .header-actions { gap: 5px; }
+  .orders-button,
   .profile-button { padding: 9px; }
+  .orders-button span,
   .profile-button span { display: none; }
   .bundle-banner { padding: 32px 16px 20px; }
   .bundle-banner h2 { font-size: clamp(2.5rem, 12vw, 4rem); }

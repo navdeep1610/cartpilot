@@ -6,9 +6,11 @@ import {
   Check,
   ChevronDown,
   Minus,
+  PackageCheck,
   Pause,
   Play,
   Plus,
+  RefreshCw,
   LockKeyhole,
   Save,
   ShieldCheck,
@@ -27,6 +29,8 @@ import {
   type SavedCustomerProfile,
 } from "@/domain/customers/customer-profile";
 import { formatInr } from "@/domain/money";
+import type { CustomerOrder, CustomerOrdersResponse } from "@/domain/orders/customer-order";
+import { removePurchasedLinesFromCart } from "@/domain/orders/complete-customer-order";
 
 interface RecommendationResponse {
   status: "ready" | "clarification_required" | "professional_guidance" | "no_match";
@@ -223,12 +227,17 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   const [showAll, setShowAll] = useState(false);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [cartOpen, setCartOpen] = useState(false);
+  const [ordersOpen, setOrdersOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profilePurpose, setProfilePurpose] = useState<"account" | "checkout">("account");
   const [profile, setProfile] = useState<CustomerProfileData>(emptyProfile);
   const [profileDraft, setProfileDraft] = useState<CustomerProfileData>(emptyProfile);
   const [profileStored, setProfileStored] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
   const [profileSaveStatus, setProfileSaveStatus] = useState<"idle" | "saving">("idle");
+  const [customerOrders, setCustomerOrders] = useState<CustomerOrder[]>([]);
+  const [ordersStatus, setOrdersStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [ordersMessage, setOrdersMessage] = useState<string | null>(null);
   const [assistantMessage, setAssistantMessage] = useState(
     "I have oily skin and clogged pores. Keep the routine simple.",
   );
@@ -448,8 +457,43 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   function openProfile() {
     setProfileDraft(profile);
     setProfileMessage(null);
+    setProfilePurpose("account");
     setCartOpen(false);
+    setOrdersOpen(false);
     setProfileOpen(true);
+  }
+
+  function closeProfile() {
+    const returnToCart = profilePurpose === "checkout";
+    setProfileOpen(false);
+    setProfilePurpose("account");
+    if (returnToCart) setCartOpen(true);
+  }
+
+  function openOrders() {
+    setCartOpen(false);
+    setProfileOpen(false);
+    setProfilePurpose("account");
+    setOrdersOpen(true);
+    void loadCustomerOrders();
+  }
+
+  async function loadCustomerOrders() {
+    setOrdersStatus("loading");
+    setOrdersMessage(null);
+    try {
+      const response = await fetch("/api/v1/customer-orders", { cache: "no-store" });
+      const result = (await response.json()) as CustomerOrdersResponse | { message?: string };
+      if (!response.ok || !("orders" in result)) {
+        const message = "message" in result ? result.message : null;
+        throw new Error(message || "Your orders could not be loaded.");
+      }
+      setCustomerOrders(result.orders);
+      setOrdersStatus("idle");
+    } catch (error) {
+      setOrdersStatus("error");
+      setOrdersMessage((error as Error).message || "Your orders could not be loaded just now.");
+    }
   }
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
@@ -477,7 +521,14 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
       setProfileDraft(savedProfile);
       setProfileStored(true);
       window.localStorage.removeItem(profileStorageKey);
-      setProfileMessage({ tone: "success", text: "Profile saved in Supabase and ready for checkout." });
+      if (profilePurpose === "checkout") {
+        setProfileMessage(null);
+        setProfileOpen(false);
+        setProfilePurpose("account");
+        setCartOpen(true);
+      } else {
+        setProfileMessage({ tone: "success", text: "Profile saved in Supabase and ready for checkout." });
+      }
     } catch (error) {
       setProfileMessage({ tone: "error", text: (error as Error).message || "Your profile could not be saved securely." });
     } finally {
@@ -492,6 +543,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     setCheckoutMessage(null);
     setCart((current) => ({ ...current, [variantId]: Math.min(10, (current[variantId] ?? 0) + quantity) }));
     setProfileOpen(false);
+    setOrdersOpen(false);
     setCartOpen(true);
   }
 
@@ -535,6 +587,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
       return next;
     });
     setProfileOpen(false);
+    setOrdersOpen(false);
     setCartOpen(true);
   }
 
@@ -559,8 +612,10 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     if (!profileStored || !isCompleteProfile(profile)) {
       setProfileDraft(profile);
       setCartOpen(false);
+      setOrdersOpen(false);
+      setProfilePurpose("checkout");
       setProfileOpen(true);
-      setProfileMessage({ tone: "info", text: "Complete and save your contact and delivery details before payment." });
+      setProfileMessage({ tone: "info", text: "Add and save your personal details. You will return to your cart afterward." });
       return;
     }
     setCheckoutStatus("preparing");
@@ -632,7 +687,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
             checkoutAttemptRef.current = { ...attempt, orderKey: `retry:${crypto.randomUUID()}`, verificationKey: `verify:${crypto.randomUUID()}` };
             return;
           }
-          await pollPaymentStatus(order.paymentRecordId);
+          await pollPaymentStatus(order.paymentRecordId, confirmedCandidate.lines);
         },
         modal: {
           ondismiss: () => {
@@ -652,7 +707,10 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     }
   }
 
-  async function pollPaymentStatus(paymentRecordId: string) {
+  async function pollPaymentStatus(
+    paymentRecordId: string,
+    purchasedLines: CustomerOfferCandidate["lines"],
+  ) {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       await new Promise((resolve) => window.setTimeout(resolve, attempt === 0 ? 700 : 1_500));
       const response = await fetch(`/api/v1/payment-records/${paymentRecordId}`, { cache: "no-store" });
@@ -665,6 +723,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
       setCheckoutMessage(status.customerMessage);
       if (status.fulfilmentAuthorized) {
         setCheckoutStatus("success");
+        completeSuccessfulOrder(purchasedLines);
         return;
       }
       if (status.state === "payment_failed") {
@@ -677,6 +736,18 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     }
     setCheckoutStatus("waiting");
     setCheckoutMessage("Payment response verified. Capture confirmation may take a moment; fulfilment remains blocked until it arrives.");
+  }
+
+  function completeSuccessfulOrder(purchasedLines: CustomerOfferCandidate["lines"]) {
+    setCart((current) => removePurchasedLinesFromCart(current, purchasedLines));
+    setAcceptedOffer(null);
+    setOffer(null);
+    setExactTotalConfirmed(false);
+    checkoutAttemptRef.current = null;
+    setCartOpen(false);
+    setProfileOpen(false);
+    setOrdersOpen(true);
+    void loadCustomerOrders();
   }
 
   const displayedTotal = acceptedOffer?.selected.totalPaise ?? offer?.baseline.totalPaise ?? cartSubtotal;
@@ -695,10 +766,13 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           <Link href="/merchant">Merchant view</Link>
         </nav>
         <div className="header-actions">
+          <button className="orders-button" type="button" onClick={openOrders} aria-label="Open my orders">
+            <PackageCheck size={17} aria-hidden="true" /> <span>My orders</span>
+          </button>
           <button className="profile-button" type="button" onClick={openProfile} aria-label="Open my profile">
             <UserRound size={17} aria-hidden="true" /> <span>Profile</span>
           </button>
-          <button className="cart-button" type="button" onClick={() => { setProfileOpen(false); setCartOpen(true); }} aria-label={`Open cart with ${cartCount} items`}>
+          <button className="cart-button" type="button" onClick={() => { setProfileOpen(false); setOrdersOpen(false); setCartOpen(true); }} aria-label={`Open cart with ${cartCount} items`}>
             <ShoppingBag size={17} aria-hidden="true" /> Cart <span>{cartCount}</span>
           </button>
         </div>
@@ -945,20 +1019,70 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
         <p>Track 01 · AI Growth &amp; Agentic Commerce · Razorpay Test Mode only</p>
       </footer>
 
-      {(cartOpen || profileOpen) && (
+      {(cartOpen || profileOpen || ordersOpen) && (
         <button
           className="cart-backdrop"
           type="button"
           aria-label="Close open panel"
-          onClick={() => { setCartOpen(false); setProfileOpen(false); }}
+          onClick={() => { setCartOpen(false); setProfileOpen(false); setOrdersOpen(false); setProfilePurpose("account"); }}
         />
       )}
+      <aside className={`cart-drawer orders-drawer ${ordersOpen ? "open" : ""}`} aria-hidden={!ordersOpen} aria-labelledby="orders-title">
+        <div className="cart-heading">
+          <div><p className="eyebrow">Your purchases</p><h2 id="orders-title">My orders</h2></div>
+          <button type="button" className="icon-button" onClick={() => setOrdersOpen(false)} aria-label="Close orders"><X /></button>
+        </div>
+        <p className="orders-intro">Paid products move here after capture is verified. Failed or unfinished payments stay safely in your cart.</p>
+        {ordersStatus === "loading" ? (
+          <div className="customer-orders-message" role="status"><RefreshCw className="spin" /><div><h3>Loading your orders</h3><p>Reading your captured Test Mode purchases from Supabase.</p></div></div>
+        ) : ordersStatus === "error" ? (
+          <div className="customer-orders-message error" role="alert">
+            <PackageCheck />
+            <div><h3>Orders are temporarily unavailable</h3><p>{ordersMessage}</p><button type="button" onClick={() => void loadCustomerOrders()}>Try again</button></div>
+          </div>
+        ) : !profileStored ? (
+          <div className="customer-orders-message">
+            <UserRound />
+            <div><h3>Add your personal details first</h3><p>Your secure customer identifier connects this browser to its order history.</p><button type="button" onClick={openProfile}>Add personal details</button></div>
+          </div>
+        ) : customerOrders.length === 0 ? (
+          <div className="customer-orders-message">
+            <PackageCheck />
+            <div><h3>No completed orders yet</h3><p>After Razorpay confirms a captured Test Mode payment, the products will appear here.</p></div>
+          </div>
+        ) : (
+          <div className="customer-order-list" aria-live="polite">
+            {customerOrders.map((order) => (
+              <article className="customer-order-card" key={order.orderId}>
+                <header>
+                  <div><small>Order</small><h3>{order.orderId}</h3><p>{formatCustomerOrderDate(order.placedAt)}</p></div>
+                  <span><Check size={14} /> Confirmed</span>
+                </header>
+                <div className="customer-order-lines">
+                  {order.lines.map((line) => (
+                    <div key={line.variantId}>
+                      <div className={`cart-thumb ${productTones[line.productType] ?? "mint"}`}>
+                        <Image src={productImages[line.productType] ?? productImages.Cleanser} alt="" fill sizes="54px" />
+                      </div>
+                      <div><small>{line.productType} · {line.size}</small><strong>{line.productName}</strong><span>Quantity {line.quantity}</span></div>
+                      <strong>{formatInr(line.lineTotalPaise)}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="customer-order-total"><span>{order.statusLabel}</span><strong>{formatInr(order.amountPaise)}</strong></div>
+                <small className="customer-order-mode"><ShieldCheck size={13} /> Razorpay Test Mode order</small>
+              </article>
+            ))}
+          </div>
+        )}
+        <p className="orders-privacy-note"><LockKeyhole size={14} /> Orders are loaded only for the secure customer identifier stored in this browser.</p>
+      </aside>
       <aside className={`cart-drawer profile-drawer ${profileOpen ? "open" : ""}`} aria-hidden={!profileOpen} aria-labelledby="profile-title">
         <div className="cart-heading">
-          <div><p className="eyebrow">Your account</p><h2 id="profile-title">My profile</h2></div>
-          <button type="button" className="icon-button" onClick={() => setProfileOpen(false)} aria-label="Close profile"><X /></button>
+          <div><p className="eyebrow">{profilePurpose === "checkout" ? "Before checkout" : "Your account"}</p><h2 id="profile-title">{profilePurpose === "checkout" ? "Add personal details" : "My profile"}</h2></div>
+          <button type="button" className="icon-button" onClick={closeProfile} aria-label="Close profile"><X /></button>
         </div>
-        <p className="profile-intro">Your contact and delivery details are required before placing an order. They prefill Test Mode checkout and are saved with an order only after you confirm payment.</p>
+        <p className="profile-intro">{profilePurpose === "checkout" ? "Save these details once and you will return directly to your cart to continue checkout." : "Your contact and delivery details are required before placing an order. They prefill Test Mode checkout and are saved with an order only after you confirm payment."}</p>
         <p className={`profile-requirement ${profileStored && isCompleteProfile(profile) ? "complete" : "incomplete"}`}>
           {profileStored && isCompleteProfile(profile) ? <Check size={16} /> : <UserRound size={16} />}
           {profileStored && isCompleteProfile(profile) ? "Profile stored in Supabase — ready for checkout." : "Save your complete profile in Supabase before checkout."}
@@ -976,7 +1100,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           <label htmlFor="profile-address">Delivery address
             <textarea id="profile-address" name="address" autoComplete="street-address" required minLength={8} maxLength={300} rows={4} value={profileDraft.deliveryAddress} onChange={(event) => setProfileDraft((current) => ({ ...current, deliveryAddress: event.target.value }))} />
           </label>
-          <button type="submit" disabled={profileSaveStatus === "saving"}><Save size={17} /> {profileSaveStatus === "saving" ? "Saving to Supabase..." : "Save profile"}</button>
+          <button type="submit" disabled={profileSaveStatus === "saving"}><Save size={17} /> {profileSaveStatus === "saving" ? "Saving to Supabase..." : profilePurpose === "checkout" ? "Save and return to cart" : "Save profile"}</button>
           {profileMessage && <p className={`profile-saved ${profileMessage.tone}`} role="status"><ShieldCheck size={16} /> {profileMessage.text}</p>}
         </form>
         <section className="payment-security" aria-labelledby="payment-security-title">
@@ -1099,6 +1223,15 @@ function readLegacyProfile(): CustomerProfileData | null {
   } catch {
     return null;
   }
+}
+
+function formatCustomerOrderDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
 }
 
 function ProductCard({

@@ -35,9 +35,11 @@ Show the storefront and say:
 ## 2:15–2:55 — Successful Test Mode payment
 
 1. Use the prepared successful Test Mode flow or recording.
-2. Show that the server verifies the callback.
-3. Show the merchant order as captured only after authoritative Razorpay evidence.
-4. Open its audit record and show the trace ID, ordered events, hashes, policy versions and fulfilment gate.
+2. For a new shopper, show the personal-details prompt and its automatic return to the unchanged cart after saving.
+3. Show that the server verifies the callback.
+4. Show the captured products leave the cart and appear in the shopper's **My orders** panel.
+5. Show the merchant order as captured only after authoritative Razorpay evidence.
+6. Open its audit record and show the trace ID, ordered events, hashes, policy versions and fulfilment gate.
 
 ## 2:55–3:35 — Failure and safe retry
 
