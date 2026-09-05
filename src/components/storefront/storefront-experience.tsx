@@ -406,6 +406,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     event.preventDefault();
     const message = assistantMessage.trim();
     if (message.length < 3) return;
+    setAssistantMessage("");
     void runRoutine(message, message);
   }
 
@@ -450,7 +451,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   function continueRoutine(reply: string) {
     const contextLimit = Math.max(0, 950 - reply.length);
     const contextualRequest = `${lastIntentMessage.slice(0, contextLimit)}\nShopper follow-up: ${reply}`;
-    setAssistantMessage(reply);
+    setAssistantMessage("");
     void runRoutine(reply, contextualRequest);
   }
 
@@ -872,7 +873,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
           )}
           <form className="assistant-form" onSubmit={requestRoutine}>
             <label htmlFor="skin-concern">Your skin and shopping goal</label>
-            <textarea id="skin-concern" value={assistantMessage} onChange={(event) => setAssistantMessage(event.target.value)} maxLength={1000} />
+            <textarea id="skin-concern" value={assistantMessage} onChange={(event) => setAssistantMessage(event.target.value)} maxLength={1000} placeholder="Ask another skincare or shopping question..." />
             <button type="submit" disabled={recommendationStatus === "loading"}>
               {recommendationStatus === "loading" ? "Checking the catalog..." : "Build my routine"}
               {recommendationStatus !== "loading" && <ArrowRight size={17} aria-hidden="true" />}

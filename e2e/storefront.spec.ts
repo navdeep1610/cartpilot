@@ -7,10 +7,12 @@ test("a vague request pauses, accepts context, and exposes bounded agent evidenc
   await page.getByLabel("Your skin and shopping goal").fill("Help me choose skincare");
   await page.getByRole("button", { name: "Build my routine" }).click();
 
+  await expect(page.getByLabel("Your skin and shopping goal")).toHaveValue("");
   await expect(page.getByRole("heading", { name: "One detail will help" })).toBeVisible();
   await expect(page.getByText("Waiting for the shopper's answer; no order or offer was created.")).toBeVisible();
   await page.getByRole("button", { name: "Oily skin with clogged pores" }).click();
 
+  await expect(page.getByLabel("Your skin and shopping goal")).toHaveValue("");
   await expect(page.getByRole("button", { name: "Add the routine to cart" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "What CartPilot did" })).toBeVisible();
   await expect(page.getByText("Deterministic merchant rule").first()).toBeVisible();
