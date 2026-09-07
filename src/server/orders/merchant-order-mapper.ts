@@ -8,6 +8,7 @@ import type {
 } from "@/domain/orders/merchant-order";
 import type { StoredPaymentRecord } from "@/server/database/supabase-admin";
 import { verifyAuditChain, type StoredAuditEnvelope } from "@/server/audit/audit-chain";
+import { isPaymentRetryAllowed } from "@/server/payments/payment-retry-window";
 import { confirmedOrderProfit } from "@/server/orders/order-profit";
 
 export interface StoredAuditEvent {
@@ -32,12 +33,13 @@ export function toMerchantOrder(
   auditEvents: StoredAuditEvent[],
   catalog?: CatalogSnapshot,
   storedDecision?: unknown,
+  nowMs = Date.now(),
 ): MerchantOrder {
   if (!record.razorpay_order_id) throw new Error("Merchant order requires a Razorpay order id");
 
   const cart = asObject(record.confirmed_cart);
   const offer = asObject(cart.offer);
-  const paymentStatus = paymentStatusFor(record.state, record.capture_confirmed);
+  const paymentStatus = paymentStatusFor(record, nowMs);
   const lines = Array.isArray(cart.lines)
     ? cart.lines.map((line) => toOrderLine(line, catalog)).filter((line): line is MerchantOrderLine => line !== null)
     : [];
@@ -58,7 +60,7 @@ export function toMerchantOrder(
     mode: record.mode,
     paymentState: record.state,
     paymentStatus,
-    paymentStatusLabel: paymentStatusLabel(paymentStatus, record.failure_code),
+    paymentStatusLabel: paymentStatusLabel(paymentStatus, record.failure_code, record.state),
     fulfilmentStatus: record.fulfilment_authorized ? "ready_to_pack" : "blocked",
     fulfilmentStatusLabel: record.fulfilment_authorized ? "Ready to pack" : "Fulfilment blocked",
     callbackVerified: record.callback_verified,
@@ -160,26 +162,27 @@ function toDecisionEvidence(value: unknown) {
   };
 }
 
-function paymentStatusFor(state: string, captureConfirmed: boolean): MerchantPaymentStatus {
-  if (captureConfirmed || state === "payment_captured") return "paid";
-  if (["callback_verified", "payment_authorized"].includes(state)) return "verifying";
-  if (["payment_failed", "signature_verification_failed", "order_creation_unknown"].includes(state)) return "failed";
-  if (state === "cancelled") return "cancelled";
+function paymentStatusFor(record: StoredPaymentRecord, nowMs: number): MerchantPaymentStatus {
+  if (record.capture_confirmed || record.state === "payment_captured") return "paid";
+  if (["callback_verified", "payment_authorized"].includes(record.state)) return "verifying";
+  if (record.state === "payment_failed" && isPaymentRetryAllowed(record, nowMs)) return "awaiting_payment";
+  if (["payment_failed", "signature_verification_failed", "order_creation_unknown"].includes(record.state)) return "failed";
+  if (record.state === "cancelled") return "cancelled";
   return "awaiting_payment";
 }
 
-function paymentStatusLabel(status: MerchantPaymentStatus, failureCode: string | null): string {
+function paymentStatusLabel(status: MerchantPaymentStatus, failureCode: string | null, state: string): string {
   switch (status) {
     case "paid":
       return "Paid and captured";
     case "verifying":
       return "Verification pending";
     case "failed":
-      return failureCode === "PAYMENT_TIMEOUT_1H" ? "Payment timed out" : "Payment failed";
+      return failureCode === "PAYMENT_TIMEOUT_5M" ? "Payment timed out after 5 minutes" : "Payment failed";
     case "cancelled":
       return "Cancelled";
     default:
-      return "Awaiting payment";
+      return state === "payment_failed" ? "Awaiting payment · retry available" : "Awaiting payment";
   }
 }
 

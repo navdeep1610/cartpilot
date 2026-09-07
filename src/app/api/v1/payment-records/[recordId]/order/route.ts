@@ -17,6 +17,7 @@ import {
 } from "@/server/payments/razorpay-test-adapter";
 import { getShoppingSessionId } from "@/server/session/shopping-session";
 import { markPaymentTimedOut, PAYMENT_TIMEOUT_REASON } from "@/server/payments/payment-timeout";
+import { isPaymentRetryAllowed, requiresFreshPaymentRecord } from "@/server/payments/payment-retry-window";
 import { guardCustomerMutation, MutationRequestError } from "@/server/security/mutation-request";
 
 export const runtime = "nodejs";
@@ -36,9 +37,12 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
     if (!record) return safeError("PAYMENT_RECORD_NOT_FOUND", "This confirmed checkout could not be found.", 404, false);
     record = await markPaymentTimedOut(record);
     if (record.failure_code === PAYMENT_TIMEOUT_REASON) {
-      return safeError("ORDER_EXPIRED", "This checkout expired after one hour without payment. Confirm the cart again to create a new test order.", 409, true);
+      return safeError("ORDER_EXPIRED", "This checkout timed out after five minutes. A fresh payment order is required.", 409, true);
     }
-    if (["payment_failed", "signature_verification_failed", "cancelled"].includes(record.state)) {
+    if (requiresFreshPaymentRecord(record)) {
+      return safeError("ORDER_EXPIRED", "The five-minute retry window ended. A fresh payment order is required.", 409, true);
+    }
+    if (isPaymentRetryAllowed(record) || ["signature_verification_failed", "cancelled"].includes(record.state)) {
       record = await startPaymentRetry({ recordId, sessionId, idempotencyKey });
       return Response.json(toCheckoutResponse(record));
     }

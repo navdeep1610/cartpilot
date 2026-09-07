@@ -178,17 +178,29 @@ describe("toMerchantOrder", () => {
     expect(order.lines[0]?.productName).toBe("SRM-001");
   });
 
-  it("labels the one-hour application timeout clearly", () => {
+  it("labels the five-minute application timeout clearly", () => {
     const record = paymentRecord({
       state: "payment_failed",
-      failure_code: "PAYMENT_TIMEOUT_1H",
+      failure_code: "PAYMENT_TIMEOUT_5M",
     });
 
     const order = toMerchantOrder(record, []);
 
     expect(order.paymentStatus).toBe("failed");
-    expect(order.paymentStatusLabel).toBe("Payment timed out");
+    expect(order.paymentStatusLabel).toBe("Payment timed out after 5 minutes");
     expect(order.fulfilmentStatus).toBe("blocked");
+  });
+
+  it("shows a provider failure as awaiting payment during its retry window", () => {
+    const failedAt = Date.parse("2026-09-07T10:00:00.000Z");
+    const record = paymentRecord({
+      state: "payment_failed",
+      failure_code: "PAYMENT_FAILED",
+      updated_at: new Date(failedAt).toISOString(),
+    });
+    const order = toMerchantOrder(record, [], undefined, undefined, failedAt + 60_000);
+    expect(order.paymentStatus).toBe("awaiting_payment");
+    expect(order.paymentStatusLabel).toBe("Awaiting payment · retry available");
   });
 
   it("exposes safe payment retries as merchant evidence", () => {

@@ -5,12 +5,12 @@ import { isPaymentTimedOut, PAYMENT_TIMEOUT_MS } from "@/server/payments/payment
 describe("isPaymentTimedOut", () => {
   const now = Date.parse("2026-08-25T12:00:00.000Z");
 
-  it("expires an unpaid order after one hour", () => {
+  it("expires an unpaid order after five minutes", () => {
     const record = paymentRecord({ created_at: new Date(now - PAYMENT_TIMEOUT_MS).toISOString() });
     expect(isPaymentTimedOut(record, now)).toBe(true);
   });
 
-  it("keeps an unpaid order open before one hour", () => {
+  it("keeps an unpaid order open before five minutes", () => {
     const record = paymentRecord({ created_at: new Date(now - PAYMENT_TIMEOUT_MS + 1).toISOString() });
     expect(isPaymentTimedOut(record, now)).toBe(false);
   });

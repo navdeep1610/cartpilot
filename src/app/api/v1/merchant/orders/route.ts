@@ -11,6 +11,7 @@ import {
   type StoredAuditEvent,
 } from "@/server/orders/merchant-order-mapper";
 
+import { markPaymentTimedOut } from "@/server/payments/payment-timeout";
 export const runtime = "nodejs";
 
 export async function GET() {
@@ -27,7 +28,7 @@ export async function GET() {
       .limit(100);
     if (recordError) throw recordError;
 
-    const records = (recordData ?? []) as StoredPaymentRecord[];
+    const records = await Promise.all(((recordData ?? []) as StoredPaymentRecord[]).map((record) => markPaymentTimedOut(record)));
     const traceIds = records.map((record) => record.trace_id);
     let auditEvents: StoredAuditEvent[] = [];
     if (traceIds.length > 0) {

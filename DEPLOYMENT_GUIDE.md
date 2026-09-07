@@ -36,8 +36,8 @@ Switch the Razorpay dashboard to **Test Mode**.
 ## 2. Create the Supabase tables
 
 1. Open **Supabase → SQL Editor → New query**.
-2. Run the complete migration files in filename order: `0001_checkout_and_audit.sql`, `0002_customer_profiles.sql`, `0003_atomic_payments.sql`, `0004_complete_audit_trail.sql`, then `0005_failure_retry_demo.sql`.
-3. Apply each migration once. The failure demo requires all five migrations.
+2. Run the complete migration files in filename order: `0001_checkout_and_audit.sql`, `0002_customer_profiles.sql`, `0003_atomic_payments.sql`, `0004_complete_audit_trail.sql`, `0005_failure_retry_demo.sql`, then `0006_five_minute_payment_lifecycle.sql`.
+3. Apply each migration once. The five-minute failure, timeout, fresh-order, and duplicate-fulfilment protections require all six migrations.
 
 This creates private decision, customer, payment, webhook, transition, and append-only audit tables plus the transactional payment functions. Browser users receive no direct access to these tables.
 

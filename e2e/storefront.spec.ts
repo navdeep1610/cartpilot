@@ -226,7 +226,7 @@ test("an unfinished Razorpay checkout keeps the cart after returning or reloadin
   await page.getByLabel(/I confirm this exact cart and total/).check();
   await page.getByRole("button", { name: /Pay with Razorpay Test Mode/ }).click();
 
-  await expect(page.getByText("Test checkout was closed. The cart is retained and fulfilment remains blocked.")).toBeVisible();
+  await expect(page.getByText("Checkout was closed without a result. The cart is retained; this payment will time out after five minutes.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Open cart with 1 items" })).toBeVisible();
 
   await page.reload();

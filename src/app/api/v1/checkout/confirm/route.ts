@@ -11,6 +11,7 @@ import {
 } from "@/server/database/supabase-admin";
 import { hashCanonicalJson } from "@/server/security/canonical-json";
 import { PAYMENT_TIMEOUT_REASON } from "@/server/payments/payment-timeout";
+import { requiresFreshPaymentRecord } from "@/server/payments/payment-retry-window";
 import {
   createShoppingSessionId,
   getShoppingSessionId,
@@ -148,7 +149,7 @@ export async function POST(request: Request) {
 
     // A timed-out checkout is final. Give the customer a fresh session and
     // payment record instead of accidentally returning the expired order.
-    if (record?.failure_code === PAYMENT_TIMEOUT_REASON) {
+    if (record && (record.failure_code === PAYMENT_TIMEOUT_REASON || requiresFreshPaymentRecord(record))) {
       responseSessionId = createShoppingSessionId();
       record = await confirmCheckoutForSession(responseSessionId, confirmationParams);
     }

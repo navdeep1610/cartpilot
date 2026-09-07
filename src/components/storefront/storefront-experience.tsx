@@ -145,7 +145,10 @@ interface CustomerProfileResponse {
 
 declare global {
   interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+    Razorpay?: new (options: Record<string, unknown>) => {
+      open: () => void;
+      on?: (event: "payment.failed", handler: (response: unknown) => void) => void;
+    };
   }
 }
 
@@ -264,6 +267,9 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     verificationKey: string;
   } | null>(null);
   const assistantConversationRef = useRef<HTMLDivElement | null>(null);
+  const paymentMonitorRef = useRef(0);
+  const checkoutFailureRef = useRef(false);
+  const completedPaymentsRef = useRef(new Set<string>());
 
   const categories = useMemo(
     () => ["All", ...new Set(catalog.products.map((product) => product.productType))],
@@ -633,7 +639,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
     setOffer(null);
   }
 
-  async function beginTestCheckout() {
+  async function beginTestCheckout(openCheckout = true) {
     const activeOffer = acceptedOffer ?? offer;
     const confirmedCandidate = acceptedOffer?.selected ?? offer?.baseline;
     if (
@@ -690,15 +696,21 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
       if (!orderResponse.ok || !("orderId" in order)) {
         throw new Error((order as { message?: string }).message || "Test checkout could not be opened.");
       }
+      if (!openCheckout) {
+        setCheckoutStatus("idle");
+        setCheckoutMessage("The previous attempt ended. A fresh payment order is ready; use Pay to open it.");
+        return;
+      }
 
       await loadRazorpayCheckout();
       if (!window.Razorpay) throw new Error("Razorpay Checkout did not load.");
+      checkoutFailureRef.current = false;
       const checkout = new window.Razorpay({
         key: order.keyId,
         order_id: order.orderId,
         amount: order.amountPaise,
         currency: order.currency,
-        timeout: 3600,
+        timeout: 300,
         name: order.merchantName,
         description: order.description,
         prefill: {
@@ -714,27 +726,40 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
             headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.verificationKey },
             body: JSON.stringify(callback),
           });
-          const verification = (await verificationResponse.json()) as { message?: string };
+          const verification = (await verificationResponse.json()) as { message?: string; fulfilmentAuthorized?: boolean };
           if (!verificationResponse.ok) {
             setCheckoutStatus("failure");
             setCheckoutMessage(verification.message || "The payment response could not be verified. Fulfilment remains blocked.");
             checkoutAttemptRef.current = { ...attempt, orderKey: `retry:${crypto.randomUUID()}`, verificationKey: `verify:${crypto.randomUUID()}` };
             return;
           }
+          if (verification.fulfilmentAuthorized) {
+            setCheckoutStatus("success");
+            completeSuccessfulOrder(order.paymentRecordId, confirmedCandidate.lines);
+            return;
+          }
           await pollPaymentStatus(order.paymentRecordId, confirmedCandidate.lines);
         },
         modal: {
           ondismiss: () => {
-            setCheckoutStatus("idle");
-            setCheckoutMessage("Test checkout was closed. The cart is retained and fulfilment remains blocked.");
+            if (checkoutFailureRef.current) return;
+            setCheckoutStatus("waiting");
+            setCheckoutMessage("Checkout was closed without a result. The cart is retained; this payment will time out after five minutes.");
           },
         },
         theme: { color: "#20342a" },
         notes: { payment_record_id: order.paymentRecordId },
       });
+      checkout.on?.("payment.failed", () => {
+        checkoutFailureRef.current = true;
+        setCheckoutStatus("failure");
+        setCheckoutMessage("Payment failed. Your cart is unchanged. Retry is available for five minutes.");
+        void pollPaymentStatus(order.paymentRecordId, confirmedCandidate.lines, true);
+      });
       checkout.open();
       setCheckoutStatus("waiting");
       setCheckoutMessage("Razorpay Test checkout opened. No real money will be charged.");
+      void pollPaymentStatus(order.paymentRecordId, confirmedCandidate.lines);
     } catch (error) {
       setCheckoutStatus("failure");
       setCheckoutMessage((error as Error).message || "Checkout could not be started safely.");
@@ -744,35 +769,60 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
   async function pollPaymentStatus(
     paymentRecordId: string,
     purchasedLines: CustomerOfferCandidate["lines"],
+    preserveFailureMessage = false,
   ) {
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, attempt === 0 ? 700 : 1_500));
+    const monitorId = ++paymentMonitorRef.current;
+    for (let attempt = 0; attempt < 70; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, attempt === 0 ? 700 : 5_000));
+      if (monitorId !== paymentMonitorRef.current) return;
       const response = await fetch(`/api/v1/payment-records/${paymentRecordId}`, { cache: "no-store" });
       if (!response.ok) continue;
       const status = (await response.json()) as {
         state: string;
         fulfilmentAuthorized: boolean;
+        retryAllowed: boolean;
+        replacementRequired: boolean;
         customerMessage: string;
       };
-      setCheckoutMessage(status.customerMessage);
       if (status.fulfilmentAuthorized) {
         setCheckoutStatus("success");
-        completeSuccessfulOrder(purchasedLines);
+        setCheckoutMessage(status.customerMessage);
+        completeSuccessfulOrder(paymentRecordId, purchasedLines);
         return;
       }
-      if (status.state === "payment_failed") {
+      if (status.replacementRequired) {
+        checkoutAttemptRef.current = null;
+        setCheckoutStatus("preparing");
+        setCheckoutMessage("The five-minute payment window ended. Preparing a fresh order while keeping your cart...");
+        await beginTestCheckout(false);
+        return;
+      }
+      if (status.state === "payment_failed" && status.retryAllowed) {
         setCheckoutStatus("failure");
-        setCheckoutMessage(`${status.customerMessage} Click Pay again to retry the same protected order.`);
+        setCheckoutMessage(`${status.customerMessage} Retry is available for five minutes after the failure.`);
         const currentAttempt = checkoutAttemptRef.current;
-        if (currentAttempt) checkoutAttemptRef.current = { ...currentAttempt, orderKey: `retry:${crypto.randomUUID()}`, verificationKey: `verify:${crypto.randomUUID()}` };
-        return;
+        if (currentAttempt) {
+          checkoutAttemptRef.current = {
+            ...currentAttempt,
+            orderKey: `retry:${crypto.randomUUID()}`,
+            verificationKey: `verify:${crypto.randomUUID()}`,
+          };
+        }
+        preserveFailureMessage = true;
+        continue;
       }
+      if (!preserveFailureMessage) setCheckoutMessage(status.customerMessage);
     }
-    setCheckoutStatus("waiting");
-    setCheckoutMessage("Payment response verified. Capture confirmation may take a moment; fulfilment remains blocked until it arrives.");
+    if (monitorId === paymentMonitorRef.current) {
+      setCheckoutStatus("waiting");
+      setCheckoutMessage("Payment status could not be confirmed yet. Your cart remains safe; use Pay to try again.");
+    }
   }
 
-  function completeSuccessfulOrder(purchasedLines: CustomerOfferCandidate["lines"]) {
+  function completeSuccessfulOrder(paymentRecordId: string, purchasedLines: CustomerOfferCandidate["lines"]) {
+    if (completedPaymentsRef.current.has(paymentRecordId)) return;
+    completedPaymentsRef.current.add(paymentRecordId);
+    paymentMonitorRef.current += 1;
     setCart((current) => removePurchasedLinesFromCart(current, purchasedLines));
     setAcceptedOffer(null);
     setOffer(null);
@@ -1219,7 +1269,7 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
               <input type="checkbox" checked={exactTotalConfirmed} disabled={!policyPassed} onChange={(event) => setExactTotalConfirmed(event.target.checked)} />
               <span>I confirm this exact cart and total of <strong>{formatInr(displayedTotal)}</strong>.</span>
             </label>
-            <button className="checkout-button" type="button" onClick={beginTestCheckout} disabled={!activeDecision || !policyPassed || !exactTotalConfirmed || checkoutStatus === "preparing"}>
+            <button className="checkout-button" type="button" onClick={() => void beginTestCheckout()} disabled={!activeDecision || !policyPassed || !exactTotalConfirmed || checkoutStatus === "preparing"}>
               {checkoutStatus === "preparing" ? "Preparing Test checkout..." : checkoutStatus === "failure" ? "Retry Razorpay Test Payment" : "Pay with Razorpay Test Mode"} <ArrowRight size={18} />
             </button>
             {checkoutMessage && <p className={`checkout-status ${checkoutStatus}`} role="status">{checkoutMessage}</p>}

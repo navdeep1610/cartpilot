@@ -1,8 +1,8 @@
 import { getSupabaseAdmin, type StoredPaymentRecord } from "@/server/database/supabase-admin";
 import { applyPaymentTimeout } from "@/server/payments/atomic-payment-store";
 
-export const PAYMENT_TIMEOUT_MS = 60 * 60 * 1_000;
-export const PAYMENT_TIMEOUT_REASON = "PAYMENT_TIMEOUT_1H";
+export const PAYMENT_TIMEOUT_MS = 5 * 60 * 1_000;
+export const PAYMENT_TIMEOUT_REASON = "PAYMENT_TIMEOUT_5M";
 
 const timeoutEligibleStates = [
   "customer_confirmed",
@@ -12,7 +12,8 @@ const timeoutEligibleStates = [
 ] as const;
 
 export function isPaymentTimedOut(record: StoredPaymentRecord, nowMs = Date.now()): boolean {
-  const createdAtMs = Date.parse(record.created_at);
+  const timeoutAnchor = record.payment_retry_count > 0 ? record.updated_at : record.created_at;
+  const createdAtMs = Date.parse(timeoutAnchor);
   return (
     Number.isFinite(createdAtMs) &&
     nowMs - createdAtMs >= PAYMENT_TIMEOUT_MS &&

@@ -79,6 +79,15 @@ export function MerchantOrders() {
   }, [orders, query, statusFilter]);
 
   const selectedOrder = orders.find((order) => order.paymentRecordId === selectedOrderId) ?? null;
+  const hasPendingPayments = orders.some((order) =>
+    ["awaiting_payment", "verifying"].includes(order.paymentStatus),
+  );
+  useEffect(() => {
+    if (!hasPendingPayments) return;
+    const interval = window.setInterval(() => void loadOrders(), 15_000);
+    return () => window.clearInterval(interval);
+  }, [hasPendingPayments, loadOrders]);
+
   const capturedRevenue = orders
     .filter((order) => order.paymentStatus === "paid")
     .reduce((total, order) => total + order.amountPaise, 0);

@@ -2,8 +2,9 @@ import {
   DatabaseConfigurationError,
   findPaymentRecord,
 } from "@/server/database/supabase-admin";
-import { applyPaymentCallback } from "@/server/payments/atomic-payment-store";
-import { PaymentConfigurationError, verifyRazorpayPaymentCallback } from "@/server/payments/razorpay-test-adapter";
+import { applyPaymentCallback, applyPaymentReconciliation } from "@/server/payments/atomic-payment-store";
+import { fetchRazorpayTestPaymentEvidence, PaymentConfigurationError, verifyRazorpayPaymentCallback } from "@/server/payments/razorpay-test-adapter";
+import { reconcileRazorpayPayment } from "@/server/payments/reconcile-razorpay-payment";
 import { getShoppingSessionId } from "@/server/session/shopping-session";
 import { guardCustomerMutation, MutationRequestError } from "@/server/security/mutation-request";
 
@@ -36,7 +37,7 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
     const orderMatches = orderId === record.razorpay_order_id;
     const signatureValid = orderMatches && verifyRazorpayPaymentCallback({ orderId: record.razorpay_order_id, paymentId, signature });
     const reasonCode = signatureValid ? "CHECKOUT_CALLBACK_VERIFIED" : "PAYMENT_SIGNATURE_INVALID";
-    const storedRecord = await applyPaymentCallback({
+    let storedRecord = await applyPaymentCallback({
       recordId,
       sessionId,
       paymentId,
@@ -49,6 +50,31 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
     if (storedRecord.manual_review_required) {
       return safeError("PAYMENT_ID_CONFLICT", "The payment reference needs manual reconciliation. Fulfilment remains blocked.", 409, false);
     }
+    let reconciliationMessage = "Payment response verified. Waiting for server-side capture confirmation.";
+    try {
+      const evidence = await fetchRazorpayTestPaymentEvidence({ paymentId, orderId });
+      const decision = reconcileRazorpayPayment(storedRecord, evidence);
+      if (!decision.evidenceMatched) {
+        storedRecord = await applyPaymentReconciliation({
+          record: storedRecord,
+          nextState: storedRecord.state,
+          reasonCode: decision.reasonCode,
+          update: {},
+          outcome: "failure",
+        });
+      } else if (decision.update) {
+        storedRecord = await applyPaymentReconciliation({
+          record: storedRecord,
+          nextState: decision.nextState,
+          reasonCode: decision.reasonCode,
+          update: decision.update,
+          outcome: "success",
+        });
+      }
+      reconciliationMessage = decision.message;
+    } catch {
+      // The verified callback remains stored; status polling or the webhook retries reconciliation.
+    }
     return Response.json({
       paymentRecordId: recordId,
       state: storedRecord.state,
@@ -57,7 +83,7 @@ export async function POST(request: Request, context: RouteContext<"/api/v1/paym
       fulfilmentAuthorized: storedRecord.fulfilment_authorized,
       message: storedRecord.fulfilment_authorized
         ? "Payment and capture are verified. The demo fulfilment gate is open."
-        : "Payment response verified. Waiting for server-side capture confirmation.",
+        : reconciliationMessage,
     });
   } catch (error) {
     if (error instanceof MutationRequestError) return safeError(error.code, error.message, error.status, false);
