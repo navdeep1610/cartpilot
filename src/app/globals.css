@@ -1223,6 +1223,18 @@ button:disabled {
   font-weight: 800;
 }
 .checkout-status { margin: 11px 5px 0; color: var(--muted); font-size: .8rem; }
+.payment-retry-panel {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+  border: 1px solid rgba(166, 55, 45, .28);
+  border-radius: 16px;
+  background: rgba(166, 55, 45, .07);
+}
+.payment-retry-panel h3 { margin: 0; color: var(--danger); font-size: .95rem; }
+.payment-retry-panel p { margin: 4px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.45; }
+.payment-retry-panel .payment-retry-button { background: var(--danger); }
+
 .checkout-status.success { color: #287148; }
 .checkout-status.failure { color: var(--danger); }
 .checkout-status.waiting { color: #76531e; }

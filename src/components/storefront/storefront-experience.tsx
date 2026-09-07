@@ -1269,10 +1269,24 @@ export function StorefrontExperience({ catalog }: { catalog: PublicCatalogRespon
               <input type="checkbox" checked={exactTotalConfirmed} disabled={!policyPassed} onChange={(event) => setExactTotalConfirmed(event.target.checked)} />
               <span>I confirm this exact cart and total of <strong>{formatInr(displayedTotal)}</strong>.</span>
             </label>
-            <button className="checkout-button" type="button" onClick={() => void beginTestCheckout()} disabled={!activeDecision || !policyPassed || !exactTotalConfirmed || checkoutStatus === "preparing"}>
-              {checkoutStatus === "preparing" ? "Preparing Test checkout..." : checkoutStatus === "failure" ? "Retry Razorpay Test Payment" : "Pay with Razorpay Test Mode"} <ArrowRight size={18} />
-            </button>
-            {checkoutMessage && <p className={`checkout-status ${checkoutStatus}`} role="status">{checkoutMessage}</p>}
+            {checkoutStatus === "failure" ? (
+              <section className="payment-retry-panel" role="alert" aria-labelledby="payment-retry-title">
+                <div>
+                  <h3 id="payment-retry-title">Payment failed</h3>
+                  <p>{checkoutMessage || "Your cart is unchanged and ready to retry."}</p>
+                </div>
+                <button className="checkout-button payment-retry-button" type="button" onClick={() => void beginTestCheckout()}>
+                  <RefreshCw size={18} aria-hidden="true" /> Retry payment
+                </button>
+              </section>
+            ) : (
+              <>
+                <button className="checkout-button" type="button" onClick={() => void beginTestCheckout()} disabled={!activeDecision || !policyPassed || !exactTotalConfirmed || checkoutStatus === "preparing"}>
+                  {checkoutStatus === "preparing" ? "Preparing Test checkout..." : "Pay with Razorpay Test Mode"} <ArrowRight size={18} />
+                </button>
+                {checkoutMessage && <p className={`checkout-status ${checkoutStatus}`} role="status">{checkoutMessage}</p>}
+              </>
+            )}
             <p className="checkout-note"><ShieldCheck size={15} /> Atomic checkout protection keeps one confirmed cart tied to one Razorpay order. Duplicate clicks and webhook replays cannot create a second fulfilment.</p>
           </>
         )}

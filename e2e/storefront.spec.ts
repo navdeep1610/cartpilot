@@ -170,7 +170,7 @@ test("a customer can open completed orders from the storefront", async ({ page }
   await expect(page.getByLabel("My orders", { exact: true }).getByText("Acne Control Starter Kit")).toBeVisible();
 });
 
-test("an unfinished Razorpay checkout keeps the cart after returning or reloading", async ({ page }) => {
+test("a failed Razorpay checkout keeps the cart and exposes a clear retry action", async ({ page }) => {
   const profile = {
     customerProfileId: "CUSTOMER-22222222-2222-4222-8222-222222222222",
     name: "Demo Shopper",
@@ -180,11 +180,17 @@ test("an unfinished Razorpay checkout keeps the cart after returning or reloadin
   };
   await page.addInitScript(() => {
     class AbandonedRazorpayCheckout {
+      private failureHandler?: (response: unknown) => void;
       constructor(private readonly options: Record<string, unknown>) {}
+
+      on(_event: "payment.failed", handler: (response: unknown) => void) {
+        this.failureHandler = handler;
+      }
 
       open() {
         window.setTimeout(() => {
           const modal = this.options.modal as { ondismiss?: () => void } | undefined;
+          this.failureHandler?.({});
           modal?.ondismiss?.();
         }, 0);
       }
@@ -226,7 +232,8 @@ test("an unfinished Razorpay checkout keeps the cart after returning or reloadin
   await page.getByLabel(/I confirm this exact cart and total/).check();
   await page.getByRole("button", { name: /Pay with Razorpay Test Mode/ }).click();
 
-  await expect(page.getByText("Checkout was closed without a result. The cart is retained; this payment will time out after five minutes.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payment failed" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry payment" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open cart with 1 items" })).toBeVisible();
 
   await page.reload();
